@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Node / SvelteKit (frontend/.gitignore covers the rest)
+node_modules/
+
+# Local dev data and test recordings (never commit media)
+.dev/
+samples/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code local files
+.claude/
+
+# Kept out of the public repository: planning notes, notes for Claude, and the
+# deploy kit for one particular server
+song-vault-spec.md
+CLAUDE.md
+deploy/

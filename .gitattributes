@@ -1,0 +1,7 @@
+# Files that run on the Linux server must keep LF line endings, even in a Windows checkout.
+* text=auto
+*.sh text eol=lf
+*.cron text eol=lf
+Caddyfile text eol=lf
+Dockerfile text eol=lf
+*.xml text eol=lf

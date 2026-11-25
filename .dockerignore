@@ -1,0 +1,12 @@
+.git
+.claude
+.dev
+samples
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+frontend/.svelte-kit
+frontend/build
+*.md
+deploy

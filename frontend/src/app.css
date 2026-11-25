@@ -1,0 +1,261 @@
+:root {
+	--bg: #111317;
+	--surface: #181b21;
+	--surface-2: #20242c;
+	--surface-3: #292e38;
+	--border: #2b303a;
+	--text: #eceef2;
+	--text-muted: #9aa3b2;
+	--text-faint: #6b7383;
+	--accent: #f0a646;
+	--accent-strong: #ffb85c;
+	--accent-ink: #1d1407;
+	--accent-soft: rgb(240 166 70 / 0.14);
+	--danger: #f06a6a;
+	--danger-soft: rgb(240 106 106 / 0.14);
+	--radius: 12px;
+	--radius-sm: 8px;
+	--header-h: 56px;
+	--tile-w: 116px;
+	--gutter: 1rem;
+	--font:
+		system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	color-scheme: dark;
+}
+
+@media (min-width: 720px) {
+	:root {
+		--tile-w: 148px;
+		--gutter: 1.5rem;
+	}
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--font);
+	font-size: 16px;
+	line-height: 1.45;
+	-webkit-font-smoothing: antialiased;
+	-webkit-tap-highlight-color: transparent;
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+h1,
+h2,
+h3 {
+	margin: 0;
+	line-height: 1.2;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+
+/* ---- buttons ---- */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	min-height: 38px;
+	padding: 0.45rem 0.9rem;
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	color: var(--text);
+	font-weight: 550;
+	font-size: 0.95rem;
+	cursor: pointer;
+	white-space: nowrap;
+	transition:
+		background 0.12s,
+		border-color 0.12s;
+}
+.btn:hover {
+	background: var(--surface-3);
+}
+.btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+.btn-primary {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: var(--accent-ink);
+}
+.btn-primary:hover {
+	background: var(--accent-strong);
+}
+.btn-ghost {
+	background: transparent;
+	border-color: transparent;
+}
+.btn-ghost:hover {
+	background: var(--surface-2);
+}
+.btn-danger {
+	color: var(--danger);
+}
+.btn-danger:hover {
+	background: var(--danger-soft);
+}
+.btn-icon {
+	width: 38px;
+	padding: 0;
+}
+.btn-sm {
+	min-height: 32px;
+	padding: 0.25rem 0.65rem;
+	font-size: 0.875rem;
+}
+.btn-sm.btn-icon {
+	width: 32px;
+	padding: 0; /* .btn-sm's side padding would leave the icon ~9px wide */
+}
+.btn > svg {
+	flex-shrink: 0;
+}
+
+/* ---- form fields ---- */
+.field {
+	width: 100%;
+	min-height: 40px;
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--border);
+	background: #0d0f13;
+	color: var(--text);
+}
+.field::placeholder {
+	color: var(--text-faint);
+}
+.field:focus {
+	outline: none;
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+textarea.field {
+	min-height: 120px;
+	resize: vertical;
+	line-height: 1.5;
+}
+select.field {
+	width: auto;
+	padding-right: 2rem;
+}
+
+.toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.9rem;
+	color: var(--text-muted);
+	cursor: pointer;
+	user-select: none;
+}
+.toggle input {
+	accent-color: var(--accent);
+	width: 16px;
+	height: 16px;
+}
+
+/* ---- status pills ---- */
+.pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.1rem 0.55rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	background: var(--surface-3);
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+.pill[data-status='idea'] {
+	background: rgb(154 163 178 / 0.16);
+	color: #c3c9d4;
+}
+.pill[data-status='writing'] {
+	background: rgb(112 168 255 / 0.16);
+	color: #9cc2ff;
+}
+.pill[data-status='arranging'] {
+	background: rgb(186 140 255 / 0.16);
+	color: #d0b2ff;
+}
+.pill[data-status='recorded'] {
+	background: rgb(240 166 70 / 0.16);
+	color: #ffc47a;
+}
+.pill[data-status='done'] {
+	background: rgb(92 201 138 / 0.16);
+	color: #86e0ab;
+}
+.pill[data-status='shelved'] {
+	background: rgb(107 115 131 / 0.2);
+	color: #8e96a6;
+}
+
+.error {
+	color: var(--danger);
+	font-size: 0.9rem;
+	margin: 0;
+}
+
+.muted {
+	color: var(--text-muted);
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+/* ---- printing (the lyrics page's print view, spec 5.6) ---- */
+/* The usual 1-inch margins on every side: without this some browsers print right up
+   to the paper's edge, which most printers can't reach. */
+@page {
+	margin: 1in;
+}
+@media print {
+	:root {
+		--bg: #fff;
+		--text: #000;
+		--text-muted: #333;
+		--text-faint: #666;
+		--accent-strong: #000;
+		color-scheme: light;
+	}
+	.no-print {
+		display: none !important;
+	}
+}
