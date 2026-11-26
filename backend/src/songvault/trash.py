@@ -1,5 +1,6 @@
 """Trash (spec 3.1, 3.2): deleted songs and recordings, restorable for 30 days,
-then deleted for good, files included.
+then deleted for good, files included. Notebook notes are listed here too (spec 5.11);
+notes.py restores and purges them.
 
 Deleting only sets `deleted_at`. A song in Trash takes its recordings with it;
 restoring the song brings them back. The nightly offsite backup moves files that
@@ -49,10 +50,18 @@ class TrashClip(ClipSummary):
     purge_at: str
 
 
+class TrashNote(BaseModel):
+    uid: str
+    body: str
+    deleted_at: str
+    purge_at: str
+
+
 class Trash(BaseModel):
     days: int
     projects: list[TrashProject]
     clips: list[TrashClip]
+    notes: list[TrashNote]
 
 
 def _iso(dt: datetime) -> str:
@@ -84,6 +93,9 @@ def list_trash(conn: sqlite3.Connection = Depends(get_db)) -> Trash:
         LIMIT 1000
         """
     ).fetchall()
+    notes = conn.execute(
+        "SELECT uid, body, deleted_at FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC LIMIT 1000"
+    ).fetchall()
     return Trash(
         days=TRASH_DAYS,
         projects=[
@@ -108,6 +120,10 @@ def list_trash(conn: sqlite3.Connection = Depends(get_db)) -> Trash:
                 purge_at=purge_at(c["deleted_at"]),
             )
             for c in clips
+        ],
+        notes=[
+            TrashNote(uid=n["uid"], body=n["body"], deleted_at=n["deleted_at"], purge_at=purge_at(n["deleted_at"]))
+            for n in notes
         ],
     )
 

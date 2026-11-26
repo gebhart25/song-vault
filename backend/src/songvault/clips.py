@@ -440,6 +440,7 @@ def clips_summary(conn: sqlite3.Connection = Depends(get_db)) -> Summary:
     in_trash = conn.execute(
         "SELECT (SELECT count(*) FROM clips WHERE deleted_at IS NOT NULL)"
         " + (SELECT count(*) FROM projects WHERE deleted_at IS NOT NULL)"
+        " + (SELECT count(*) FROM notes WHERE deleted_at IS NOT NULL)"
     ).fetchone()[0]
     return Summary(
         uncategorized=count,

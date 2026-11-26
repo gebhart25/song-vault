@@ -3,7 +3,9 @@
  *
  * 1. Share target (spec 2.1): Android posts shared videos to /share-target.
  *    The files are kept in IndexedDB and the app opens /share?id=… to upload them.
- * 2. App shell cache (spec 2.1): built assets are cached so the app opens fast.
+ *    Shared text with no files opens the Notebook with a new note filled in (spec 5.11).
+ * 2. App shell cache (spec 2.1): built assets are cached so the app opens fast, and
+ *    without the server (the Notebook works offline, spec 5.11).
  *    API calls always go to the network.
  */
 import { version } from '$app/env';
@@ -42,18 +44,25 @@ async function receiveShare(request: Request): Promise<Response> {
 	const form = await request.formData();
 	const files = form.getAll('media').filter((f): f is File => f instanceof File && f.size > 0);
 	const id = crypto.randomUUID();
+	const title = String(form.get('title') ?? '').trim();
+	const text = String(form.get('text') ?? '').trim();
+	const link = String(form.get('url') ?? '').trim();
+	const words = link && !text.includes(link) ? [text, link].filter(Boolean).join('\n') : text;
+	let target = '/share?empty=1';
 	if (files.length) {
-		await saveShare({
-			id,
-			created: Date.now(),
-			files,
-			title: String(form.get('title') ?? ''),
-			text: String(form.get('text') ?? '')
-		});
+		await saveShare({ id, created: Date.now(), files, title, text: words });
+		target = `/share?id=${id}`;
+	} else if (title || words) {
+		// Just text: a new note in the Notebook, saved when the user taps Save.
+		await saveShare({ id, created: Date.now(), files: [], title, text: words });
+		target = `/notebook?share=${id}`;
 	}
-	const target = files.length ? `/share?id=${id}` : '/share?empty=1';
 	return Response.redirect(new URL(target, self.location.origin).href, 303);
 }
+
+/** Network first for pages, but not for long: away from home the server's address can
+ * hang instead of failing, and the app shell is enough to open the Notebook. */
+const PAGE_TIMEOUT_MS = 4000;
 
 async function cacheFirst(request: Request): Promise<Response> {
 	const cached = await caches.match(request);
@@ -61,11 +70,19 @@ async function cacheFirst(request: Request): Promise<Response> {
 }
 
 async function networkFirstShell(request: Request): Promise<Response> {
+	const shell = async () => (await caches.match(SHELL_URL)) ?? Response.error();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timedOut = new Promise<Response>((resolve) => {
+		timer = setTimeout(() => resolve(shell()), PAGE_TIMEOUT_MS);
+	});
 	try {
-		return await fetch(request);
+		return await Promise.race([fetch(request), timedOut]);
 	} catch {
-		// Offline: the single-page app shell still opens; API calls will report the error.
-		return (await caches.match(SHELL_URL)) ?? Response.error();
+		// Offline: the single-page app shell still opens (the Notebook works; other pages
+		// say the server can't be reached).
+		return await shell();
+	} finally {
+		clearTimeout(timer);
 	}
 }
 

@@ -53,7 +53,7 @@ def test_trash_lists_songs_and_recordings(authed: TestClient, project: dict, set
     song = authed.post("/api/projects", json={"name": "Trash Song"}).json()
     in_song = _clip_with_files(settings, song["id"], "insong")
     loose = _clip_with_files(settings, None, "loose")
-    assert authed.get("/api/trash").json() == {"days": 30, "projects": [], "clips": []}
+    assert authed.get("/api/trash").json() == {"days": 30, "projects": [], "clips": [], "notes": []}
     assert authed.get("/api/clips/summary").json()["trash"] == 0
 
     authed.delete(f"/api/clips/{loose}")

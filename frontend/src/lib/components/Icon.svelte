@@ -51,7 +51,9 @@
 		flip: 'M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4',
 		fullscreen: 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5',
 		scissors: 'M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.1 7.9 20 18M8.1 16.1 20 6',
-		image: 'M4 5h16v14H4zM4 16l4.5-4.5 3.5 3.5 2.5-2.5L20 18M15.5 9.5h.01'
+		image: 'M4 5h16v14H4zM4 16l4.5-4.5 3.5 3.5 2.5-2.5L20 18M15.5 9.5h.01',
+		copy: 'M9 9h11v11H9zM15 9V4H4v11h5',
+		'cloud-off': 'M3 3l18 18M9 6.3A6 6 0 0 1 17.5 10H18a4 4 0 0 1 2.4 7.2M16.5 19H7a5 5 0 0 1-2-9.6'
 	} as const;
 
 	export type IconName = keyof typeof PATHS;

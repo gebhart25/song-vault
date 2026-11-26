@@ -31,8 +31,9 @@
 		(async () => {
 			try {
 				const one = id ? await getShare(id) : undefined;
-				// Also pick up shares that were never uploaded (e.g. the app was closed).
-				const all = await listShares();
+				// Also pick up shares that were never uploaded (e.g. the app was closed). Text
+				// shared on its own belongs to the Notebook, not here.
+				const all = (await listShares()).filter((b) => b.files.length > 0);
 				batches = one ? [one, ...all.filter((b) => b.id !== one.id)] : all;
 			} finally {
 				loaded = true;

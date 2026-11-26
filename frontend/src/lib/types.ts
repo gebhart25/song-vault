@@ -146,10 +146,19 @@ export interface TrashClip extends ClipSummary {
 	purge_at: string;
 }
 
+/** A Notebook note in Trash (spec 5.11) */
+export interface TrashNote {
+	uid: string;
+	body: string;
+	deleted_at: string;
+	purge_at: string;
+}
+
 export interface Trash {
 	days: number;
 	projects: TrashProject[];
 	clips: TrashClip[];
+	notes: TrashNote[];
 }
 
 /** A song's picture on the Projects page (spec 3.1) */

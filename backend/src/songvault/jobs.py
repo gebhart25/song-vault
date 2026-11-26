@@ -17,7 +17,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from . import media, trash
+from . import media, notes, trash
 from .config import Settings
 from .db import connect, now_iso
 
@@ -333,6 +333,7 @@ class Worker:
                     remove_stale_uploads(self.settings)
                     remove_stale_cuts(self.settings)
                     trash.purge_trash(self.settings)
+                    notes.purge_notes(self.settings)
                 if process_next(self.settings):
                     continue
             except Exception:  # noqa: BLE001 - keep the worker alive

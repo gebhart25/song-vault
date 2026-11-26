@@ -29,6 +29,21 @@
 			"purpose": "maskable"
 		}
 	],
+	"shortcuts": [
+		{
+			"name": "New note",
+			"short_name": "New note",
+			"description": "Jot a line or an idea in the Notebook",
+			"url": "/notebook?new=1",
+			"icons": [
+				{
+					"src": "/icons/icon-192.png",
+					"sizes": "192x192",
+					"type": "image/png"
+				}
+			]
+		}
+	],
 	"share_target": {
 		"action": "/share-target",
 		"method": "POST",
@@ -36,6 +51,7 @@
 		"params": {
 			"title": "title",
 			"text": "text",
+			"url": "url",
 			"files": [
 				{
 					"name": "media",

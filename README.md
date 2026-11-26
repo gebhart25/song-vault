@@ -6,7 +6,7 @@ Code comments that cite "spec 3.5" and so on refer to the design notes, which ar
 
 ## Status
 
-Phases 1 (the MVP), 2 (quality of life), 3 (extras) and 4 (clip editing) are built. Done so far:
+Phases 1 (the MVP), 2 (quality of life), 3 (extras) and 4 (clip editing) are built, and the first step of the Notebook. Done so far:
 
 - PIN setup and sign-in (4–6 digits, one-year session cookie), Change PIN in the account menu
 - Projects: create, rename (renames the media folder too), status, archive, move to Trash
@@ -25,7 +25,8 @@ Phases 1 (the MVP), 2 (quality of life), 3 (extras) and 4 (clip editing) are bui
 - Record in the app: video or audio only, straight into a song and part (the red button in the top bar), with an optional 5 s countdown; **Save & trim** opens the editor once the take is up
 - Export a song as a zip: originals, trimmed and split clips cut out without re-encoding, song notes, a plain-text chord sheet, ChordPro and a JSON manifest
 - Uncategorized (a card on the Projects page that opens a play-and-sort screen) and Upload history pages (marks files **Safe to delete** once the offsite backup has them; see [Backups](#backups))
-- Installable app (PWA) with an app-shell cache, and the **Android share target**: share videos from the gallery to Song Vault, pick the song and part, upload
+- **Notebook** for lyric lines, rhymes, titles and song ideas: a Jot box that saves as you type, `#tags` with filter chips, search, stars, Paste notes (a whole phone notepad, split at blank lines), Trash with Undo. It works offline: the notebook is kept on the device (IndexedDB) and synced by change number when the server is reachable, with edits from two devices kept side by side rather than overwritten. Text shared from other apps becomes a note, and the home-screen icon has a **New note** shortcut
+- Installable app (PWA) with an app-shell cache (it opens without the server, in offline mode), and the **Android share target**: share videos from the gallery to Song Vault, pick the song and part, upload
 
 ## Layout
 
@@ -44,6 +45,7 @@ backend/    FastAPI app (Python 3.13, managed with uv)
     media.py        ffprobe, recorded-date rules, file layout, ffmpeg commands
     jobs.py         background worker: playback and audio copies, preview grids, waveforms (per recording); thumbnails (per clip)
     export.py       a song as a zip
+    notes.py        the Notebook: notes synced from devices by change number, conflicts kept as copies
     db.py           SQLite connection + migrations
     migrations/     numbered .sql files (schema version = PRAGMA user_version)
   tests/

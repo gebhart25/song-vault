@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, auth, clips, covers, export, labels, lyrics, projects, recordings, trash, uploads
+from . import __version__, auth, clips, covers, export, labels, lyrics, notes, projects, recordings, trash, uploads
 from .config import Settings, load_settings
 from .db import connect, migrate
 from .jobs import Worker
@@ -61,7 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(auth.router)
     protected = [Depends(auth.require_auth)]
-    for module in (projects, covers, lyrics, labels, clips, recordings, uploads, trash, export):
+    for module in (projects, covers, lyrics, labels, clips, recordings, uploads, trash, export, notes):
         app.include_router(module.router, dependencies=protected)
 
     @app.api_route(

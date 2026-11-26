@@ -5,10 +5,11 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import { refreshCounts } from '#lib/counts.svelte.ts';
 	import { dateTime, duration, plural, shortDate } from '#lib/format.ts';
-	import type { ClipDetail, Trash, TrashClip, TrashProject } from '#lib/types.ts';
+	import { notebook } from '#lib/notebook.svelte.ts';
+	import type { ClipDetail, Trash, TrashClip, TrashNote, TrashProject } from '#lib/types.ts';
 
-	// Trash (spec 3.1, 3.2): restore deleted songs and recordings within 30 days.
-	// After that the server deletes them for good.
+	// Trash (spec 3.1, 3.2): restore deleted songs, recordings and notes (5.11) within
+	// 30 days. After that the server deletes them for good.
 
 	let trash = $state<Trash | null>(null);
 	let error = $state('');
@@ -42,7 +43,9 @@
 			.catch(() => {});
 	});
 
-	const empty = $derived(!!trash && trash.projects.length === 0 && trash.clips.length === 0);
+	const empty = $derived(
+		!!trash && trash.projects.length === 0 && trash.clips.length === 0 && trash.notes.length === 0
+	);
 
 	function goneIn(purgeAt: string): string {
 		const days = Math.ceil((new Date(purgeAt).getTime() - Date.now()) / 86_400_000);
@@ -63,6 +66,22 @@
 			restored = { name: p.name, href: `/projects/${p.id}` };
 			await load();
 			refreshCounts();
+		} catch (e) {
+			actionError = e instanceof ApiError ? e.message : 'Could not restore.';
+		} finally {
+			busy = null;
+		}
+	}
+
+	async function restoreNote(n: TrashNote) {
+		busy = `n${n.uid}`;
+		actionError = '';
+		try {
+			await api.post(`/notes/${encodeURIComponent(n.uid)}/restore`);
+			restored = { name: 'the note', href: '/notebook' };
+			await load();
+			refreshCounts();
+			void notebook.sync(); // so this device has it back
 		} catch (e) {
 			actionError = e instanceof ApiError ? e.message : 'Could not restore.';
 		} finally {
@@ -118,7 +137,7 @@
 		<div class="empty">
 			<div class="empty-icon"><Icon name="trash" size={26} /></div>
 			<h2>Trash is empty</h2>
-			<p class="muted">Songs and recordings you delete wait here for {trash.days} days before they're gone.</p>
+			<p class="muted">Songs, recordings and notes you delete wait here for {trash.days} days before they're gone.</p>
 		</div>
 	{:else}
 		{#if trash.projects.length > 0}
@@ -166,6 +185,26 @@
 									<Icon name="undo" size={16} /> Restore
 								</button>
 							{/if}
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+
+		{#if trash.notes.length > 0}
+			<section aria-labelledby="notes-title">
+				<h2 id="notes-title">Notes</h2>
+				<ul class="songs">
+					{#each trash.notes as n (n.uid)}
+						<li class="song">
+							<div class="song-body">
+								<span class="note-text">{n.body || '(empty)'}</span>
+								<span class="meta">From the Notebook · moved to Trash {shortDate(n.deleted_at)}</span>
+								<span class="gone">{goneIn(n.purge_at)}</span>
+							</div>
+							<button class="btn btn-sm" disabled={busy !== null} onclick={() => restoreNote(n)}>
+								<Icon name="undo" size={16} /> Restore
+							</button>
 						</li>
 					{/each}
 				</ul>
@@ -321,6 +360,15 @@
 	.meta {
 		color: var(--text-muted);
 		font-size: 0.85rem;
+	}
+	.note-text {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
+		overflow: hidden;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
 	}
 	.gone {
 		color: var(--text-faint);
