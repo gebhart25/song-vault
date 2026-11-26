@@ -3,6 +3,9 @@ with conflicts kept as copies rather than overwritten."""
 
 from __future__ import annotations
 
+import io
+import json
+import zipfile
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
@@ -10,6 +13,7 @@ from fastapi.testclient import TestClient
 from songvault.config import Settings
 from songvault.db import connect
 from songvault.notes import purge_notes
+from songvault.trash import purge_trash
 
 A = "note-aaaaaaaa"
 B = "note-bbbbbbbb"
@@ -156,6 +160,80 @@ def test_trash_restore_and_sync(authed: TestClient) -> None:
     assert {n["uid"] for n in authed.get("/api/notes").json()["notes"]} == {A, B}
     assert authed.get("/api/trash").json()["notes"] == []
     assert authed.post("/api/notes/missing-note/restore").status_code == 404
+
+
+def test_songs_a_note_is_in(authed: TestClient, project: dict) -> None:
+    other = authed.post("/api/projects", json={"name": "Porch Idea"}).json()
+
+    # A new note can come with its songs; ids of songs that don't exist are left out.
+    [r] = send(authed, new(A, "drive back home", songs=[project["id"], 99999]))
+    note = r["note"]
+    assert note["songs"] == [{"id": project["id"], "name": "Midnight Drive", "in_trash": False}]
+
+    # The songs are set as a whole, newest change wins (like a star).
+    [r] = send(authed, edit(note, songs=[other["id"], project["id"]]))
+    assert [s["name"] for s in r["note"]["songs"]] == ["Midnight Drive", "Porch Idea"]
+    assert r["note"]["revision"] == 2
+    [r] = send(authed, edit(note, songs=[other["id"]], status="used"))  # stale, but not the text
+    assert [s["name"] for s in r["note"]["songs"]] == ["Porch Idea"] and r["note"]["status"] == "used"
+    cursor = authed.get("/api/notes").json()["cursor"]
+    [r] = send(authed, edit(r["note"], songs=[other["id"]]))  # the same songs: no change
+    assert authed.get("/api/notes").json()["cursor"] == cursor
+
+
+def test_song_changes_reach_its_notes(authed: TestClient, project: dict, settings: Settings) -> None:
+    send(authed, new(A, "linked", songs=[project["id"]]), new(B, "not linked"))
+
+    def changed_since(cursor: int) -> list[dict]:
+        return authed.get(f"/api/notes?since={cursor}").json()["notes"]
+
+    # Renaming the song: its notes come again with the new name.
+    cursor = authed.get("/api/notes").json()["cursor"]
+    authed.patch(f"/api/projects/{project['id']}", json={"status": "writing"})
+    assert changed_since(cursor) == []  # not the name: nothing to tell
+    authed.patch(f"/api/projects/{project['id']}", json={"name": "Midnight Drive Home"})
+    [n] = changed_since(cursor)
+    assert n["uid"] == A and n["songs"][0]["name"] == "Midnight Drive Home"
+
+    # Trash and back.
+    cursor = authed.get("/api/notes").json()["cursor"]
+    authed.delete(f"/api/projects/{project['id']}")
+    [n] = changed_since(cursor)
+    assert n["songs"][0]["in_trash"] is True
+    authed.post(f"/api/projects/{project['id']}/restore")
+    assert changed_since(cursor)[0]["songs"][0]["in_trash"] is False
+
+    # Deleted for good: the note stays, without the song.
+    authed.delete(f"/api/projects/{project['id']}")
+    when = (datetime.now(UTC) - timedelta(days=31)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    conn = connect(settings.db_path)
+    with conn:
+        conn.execute("UPDATE projects SET deleted_at = ? WHERE id = ?", (when, project["id"]))
+    conn.close()
+    cursor = authed.get("/api/notes").json()["cursor"]
+    assert purge_trash(settings)[0] == 1
+    [n] = changed_since(cursor)
+    assert (n["uid"], n["songs"], n["body"]) == (A, [], "linked")
+
+
+def test_export_has_the_songs_notes(authed: TestClient, project: dict) -> None:
+    send(
+        authed,
+        new(A, "first idea #hook", songs=[project["id"]], status="used"),
+        {**new(B, "second idea", songs=[project["id"]]), "created_at": "2026-11-27T10:00:00Z"},
+        new("note-cccccccc", "elsewhere"),
+    )
+    send(authed, new("note-dddddddd", "binned", songs=[project["id"]]), {"uid": "note-dddddddd", "trash": True})
+    r = authed.get(f"/api/projects/{project['id']}/export")
+    zf = zipfile.ZipFile(io.BytesIO(r.content))
+    text = zf.read("midnight-drive/notebook.txt").decode("utf-8")
+    assert text == (
+        "Midnight Drive: notes from the Notebook\n\n"
+        "2026-11-27\nsecond idea\n\n"
+        "2026-11-26 (used)\nfirst idea #hook\n"
+    )
+    manifest = json.loads(zf.read("midnight-drive/manifest.json"))
+    assert [n["text"] for n in manifest["notebook"]] == ["second idea", "first idea #hook"]
 
 
 def _age(settings: Settings, uid: str, days: int) -> None:

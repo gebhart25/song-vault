@@ -1,6 +1,7 @@
 """Export a song as a zip (spec 5.8): its original recordings, each trimmed or split clip
 cut out of them (spec 5.10, without re-encoding), the song notes, the lyrics page (as a
-plain-text chord sheet and as ChordPro), and a JSON manifest tying it together.
+plain-text chord sheet and as ChordPro), the Notebook notes linked to the song (spec
+5.11), and a JSON manifest tying it together.
 
 The zip is streamed while it's built. Recordings are stored as they are (video doesn't
 compress further), so a song with gigabytes of video never has to fit in memory or on
@@ -26,6 +27,7 @@ from . import media
 from .clips import clock_name, is_whole
 from .config import Settings
 from .deps import get_db
+from .notes import Note, song_notes
 from .projects import CLIP_COLUMNS, CLIP_FROM, SCOPE_LABELS_SQL, get_project_row
 
 log = logging.getLogger("songvault.export")
@@ -111,6 +113,15 @@ def chord_sheet_text(song: sqlite3.Row, sections: list[dict]) -> str:
         for line in s["text"].split("\n"):
             lines += [line.strip()] if s.get("kind") == "chords" else chord_sheet_line(line)
     return "\n".join(lines).rstrip() + "\n"
+
+
+def notebook_text(song: sqlite3.Row, notes: list[Note]) -> str:
+    """The song's Notebook notes, newest first, each under the date it was written."""
+    lines = [f"{song['name']}: notes from the Notebook"]
+    for n in notes:
+        used = " (used)" if n.status == "used" else ""
+        lines += ["", f"{n.created_at[:10]}{used}", n.body.rstrip()]
+    return "\n".join(lines) + "\n"
 
 
 def chordpro_text(song: sqlite3.Row, sections: list[dict]) -> str:
@@ -214,6 +225,7 @@ def export_project(project_id: int, request: Request, conn: sqlite3.Connection =
     slug = song["slug"]
     lyrics_row = conn.execute("SELECT sections, revision FROM lyrics WHERE project_id = ?", (project_id,)).fetchone()
     sections = json.loads(lyrics_row["sections"]) if lyrics_row else []
+    notebook = song_notes(conn, project_id)
     parts = {label["id"]: label["name"] for label in conn.execute(SCOPE_LABELS_SQL, {"pid": project_id})}
     clip_rows = conn.execute(
         f"SELECT {CLIP_COLUMNS} FROM {CLIP_FROM} WHERE c.project_id = ? AND c.deleted_at IS NULL "
@@ -278,6 +290,9 @@ def export_project(project_id: int, request: Request, conn: sqlite3.Connection =
         "parts": list(parts.values()),
         "lyrics": sections,
         "clips": clips,
+        "notebook": [
+            {"text": n.body, "written_at": n.created_at, "status": n.status, "starred": n.starred} for n in notebook
+        ],
     }  # fmt: skip
     texts = [
         (f"{slug}/manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"),
@@ -288,6 +303,8 @@ def export_project(project_id: int, request: Request, conn: sqlite3.Connection =
             (f"{slug}/lyrics.txt", chord_sheet_text(song, sections)),
             (f"{slug}/lyrics.cho", chordpro_text(song, sections)),
         ]
+    if notebook:
+        texts.append((f"{slug}/notebook.txt", notebook_text(song, notebook)))
     return StreamingResponse(
         zip_stream(texts, files),
         media_type="application/zip",

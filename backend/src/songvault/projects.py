@@ -404,6 +404,15 @@ def project_detail(conn: sqlite3.Connection, project_id: int) -> ProjectDetail:
     )
 
 
+def touch_song_notes(conn: sqlite3.Connection, project_id: int) -> None:
+    """Notebook notes show their songs' names and whether they're in Trash (spec 5.11).
+    When that changes, give the song's notes new change numbers so devices fetch them
+    again. Runs inside the caller's transaction (as notes.next_seq does)."""
+    for (note_id,) in conn.execute("SELECT note_id FROM note_songs WHERE project_id = ?", (project_id,)).fetchall():
+        seq = conn.execute("UPDATE note_clock SET seq = seq + 1 WHERE id = 1 RETURNING seq").fetchall()[0][0]
+        conn.execute("UPDATE notes SET seq = ? WHERE id = ?", (seq, note_id))
+
+
 def _like(term: str) -> str:
     escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
@@ -536,6 +545,8 @@ def update_project(
         if changes.get("slug", current["slug"]) != current["slug"]:
             rename_media_folder(request.app.state.settings, conn, project_id, current["slug"], changes["slug"])
         conn.execute(f"UPDATE projects SET {assignments} WHERE id = :id", {**changes, "id": project_id})
+        if changes.get("name", current["name"]) != current["name"]:
+            touch_song_notes(conn, project_id)
     return project_detail(conn, project_id)
 
 
@@ -545,6 +556,7 @@ def delete_project(project_id: int, conn: sqlite3.Connection = Depends(get_db)) 
     get_project_row(conn, project_id)
     with conn:
         conn.execute("UPDATE projects SET deleted_at = ? WHERE id = ?", (now_iso(), project_id))
+        touch_song_notes(conn, project_id)
 
 
 @router.post("/{project_id}/restore")
@@ -554,6 +566,7 @@ def restore_project(project_id: int, conn: sqlite3.Connection = Depends(get_db))
         conn.execute(
             "UPDATE projects SET deleted_at = NULL, updated_at = ? WHERE id = ?", (now_iso(), project_id)
         )
+        touch_song_notes(conn, project_id)
     return project_detail(conn, project_id)
 
 

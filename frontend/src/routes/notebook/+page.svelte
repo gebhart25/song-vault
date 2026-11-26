@@ -5,6 +5,7 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import NoteItem from '#lib/components/NoteItem.svelte';
 	import NoteMenu, { type NoteAction } from '#lib/components/NoteMenu.svelte';
+	import NoteSongDialog, { type SongDialogMode } from '#lib/components/NoteSongDialog.svelte';
 	import { plural } from '#lib/format.ts';
 	import type { MenuAt } from '#lib/longpress.ts';
 	import { notebook, type LocalNote } from '#lib/notebook.svelte.ts';
@@ -16,12 +17,20 @@
 	// Everything works offline; the notebook store keeps it on the device and syncs.
 
 	const PAGE_SIZE = 150;
+	const HIDE_USED_KEY = 'songvault.hideUsed';
 
 	// --- the list --------------------------------------------------------------------
 
 	let query = $state('');
 	let tagFilter = $state<string | null>(null);
 	let starredOnly = $state(false);
+	/** Keep the notebook to fresh ideas (spec 5.11); remembered on the device */
+	let hideUsed = $state(localStorage.getItem(HIDE_USED_KEY) === '1');
+	$effect(() => {
+		localStorage.setItem(HIDE_USED_KEY, hideUsed ? '1' : '0');
+	});
+	/** The song actions need the server */
+	const online = $derived(!auth.offline && notebook.state !== 'offline');
 	let shown = $state(PAGE_SIZE);
 	/** The note being written in the Jot box: kept out of the list until it's done */
 	let jotUid = $state<string | null>(null);
@@ -37,13 +46,15 @@
 		return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 	});
 	const words = $derived(searchWords(query));
-	const filtering = $derived(words.length > 0 || tagFilter !== null || starredOnly);
+	const usedCount = $derived(indexed.filter((i) => i.note.status === 'used').length);
+	const filtering = $derived(words.length > 0 || tagFilter !== null || starredOnly || (hideUsed && usedCount > 0));
 	const visible = $derived(
 		indexed
 			.filter(
 				(i) =>
 					i.note.uid !== jotUid &&
 					(!starredOnly || i.note.starred) &&
+					(!hideUsed || i.note.status !== 'used') &&
 					(!tagFilter || i.tags.includes(tagFilter)) &&
 					words.every((w) => i.text.includes(w))
 			)
@@ -58,6 +69,7 @@
 		void words;
 		void tagFilter;
 		void starredOnly;
+		void hideUsed;
 		shown = PAGE_SIZE;
 	});
 
@@ -65,6 +77,7 @@
 		query = '';
 		tagFilter = null;
 		starredOnly = false;
+		hideUsed = false;
 	}
 
 	// Fresh changes from elsewhere when the page opens.
@@ -187,14 +200,53 @@
 
 	let menu = $state<{ note: LocalNote; at: MenuAt } | null>(null);
 	let pageMenuOpen = $state(false);
-	let toast = $state<{ text: string; undo?: () => void } | null>(null);
+	let songDialog = $state<{ note: LocalNote; mode: SongDialogMode } | null>(null);
+	let toast = $state<{ text: string; undo?: () => void; href?: string } | null>(null);
 	let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
-	function say(text: string, undo?: () => void) {
-		toast = { text, undo };
+	function say(text: string, undo?: () => void, href?: string) {
+		toast = { text, undo, href };
 		clearTimeout(toastTimer);
 		toastTimer = setTimeout(() => (toast = null), 6000);
 	}
+
+	// --- picking notes to combine (spec 5.11) ------------------------------------------
+
+	let selecting = $state(false);
+	/** The picked notes, in the order they were tapped */
+	let picked = $state<string[]>([]);
+
+	function startSelecting(first?: string) {
+		pageMenuOpen = false;
+		selecting = true;
+		picked = first ? [first] : [];
+	}
+
+	function stopSelecting() {
+		selecting = false;
+		picked = [];
+	}
+
+	function togglePick(uid: string) {
+		picked = picked.includes(uid) ? picked.filter((u) => u !== uid) : [...picked, uid];
+	}
+
+	function combinePicked() {
+		const count = picked.length;
+		const undo = notebook.combine(picked);
+		if (!undo) return;
+		stopSelecting();
+		say(`Combined ${count} notes`, () => {
+			toast = null;
+			undo();
+		});
+	}
+
+	// Notes that went to Trash elsewhere drop out of the selection.
+	$effect(() => {
+		const there = new Set(indexed.map((i) => i.note.uid));
+		if (picked.some((u) => !there.has(u))) picked = picked.filter((u) => there.has(u));
+	});
 
 	function trashNote(uid: string) {
 		notebook.trash(uid);
@@ -222,11 +274,20 @@
 
 	async function act(action: NoteAction, note: LocalNote) {
 		if (action === 'star') notebook.update(note.uid, { starred: !note.starred });
+		else if (action === 'used') notebook.update(note.uid, { status: note.status === 'used' ? 'fresh' : 'used' });
+		else if (action === 'select') startSelecting(note.uid);
+		else if (action === 'use' || action === 'lyrics' || action === 'start') songDialog = { note, mode: action };
 		else if (action === 'trash') trashNote(note.uid);
 		else {
 			await copyText(note.body);
 			say('Copied');
 		}
+	}
+
+	function openMenu(note: LocalNote, at: MenuAt) {
+		// While picking, a long-press picks too.
+		if (selecting) togglePick(note.uid);
+		else menu = { note, at };
 	}
 
 	function closePageMenu(e: MouseEvent) {
@@ -254,9 +315,16 @@
 	}
 </script>
 
-<svelte:window onclick={closePageMenu} onkeydown={(e) => e.key === 'Escape' && (pasteOpen = false)} />
+<svelte:window
+	onclick={closePageMenu}
+	onkeydown={(e) => {
+		if (e.key !== 'Escape') return;
+		if (pasteOpen) pasteOpen = false;
+		else if (selecting && !menu && !songDialog) stopSelecting();
+	}}
+/>
 
-<div class="page">
+<div class="page" class:selecting>
 	<header class="head">
 		<h1>Notebook</h1>
 		{#if notebook.loaded && total > 0}<span class="count">{plural(total, 'note')}</span>{/if}
@@ -272,6 +340,7 @@
 			</button>
 			{#if pageMenuOpen}
 				<div class="popover" role="menu">
+					<button role="menuitem" onclick={() => startSelecting()}><Icon name="select" size={18} /> Select notes (to combine)</button>
 					<button role="menuitem" onclick={openPaste}><Icon name="notes" size={18} /> Paste notes…</button>
 				</div>
 			{/if}
@@ -343,6 +412,11 @@
 				<button class="chip" aria-pressed={starredOnly} onclick={() => (starredOnly = !starredOnly)}>
 					<Icon name="star" size={14} /> Starred
 				</button>
+				{#if usedCount > 0 || hideUsed}
+					<button class="chip" aria-pressed={hideUsed} onclick={() => (hideUsed = !hideUsed)}>
+						Hide used<span class="n">{usedCount}</span>
+					</button>
+				{/if}
 				{#each tagCounts as [tag, n] (tag)}
 					<button class="chip" aria-pressed={tagFilter === tag} onclick={() => (tagFilter = tagFilter === tag ? null : tag)}>
 						#{tag}<span class="n">{n}</span>
@@ -360,7 +434,15 @@
 			{#if filtering}<p class="matches">{plural(visible.length, 'note')}</p>{/if}
 			<ul class="notes">
 				{#each visible.slice(0, shown) as note (note.uid)}
-					<NoteItem {note} onmenu={(at) => (menu = { note, at })} onemptied={() => trashNote(note.uid)} />
+					{@const place = picked.indexOf(note.uid)}
+					<NoteItem
+						{note}
+						onmenu={(at) => openMenu(note, at)}
+						onemptied={() => trashNote(note.uid)}
+						{selecting}
+						number={place >= 0 ? place + 1 : null}
+						ontoggle={() => togglePick(note.uid)}
+					/>
 				{/each}
 			</ul>
 			{#if visible.length > shown}
@@ -374,7 +456,26 @@
 
 {#if menu}
 	{@const target = menu.note}
-	<NoteMenu note={target} at={menu.at} onclose={() => (menu = null)} onaction={(a) => act(a, target)} />
+	<NoteMenu note={target} at={menu.at} {online} onclose={() => (menu = null)} onaction={(a) => act(a, target)} />
+{/if}
+
+{#if songDialog}
+	<NoteSongDialog
+		note={songDialog.note}
+		mode={songDialog.mode}
+		onclose={() => (songDialog = null)}
+		ondone={(text, href) => say(text, undefined, href)}
+	/>
+{/if}
+
+{#if selecting}
+	<div class="select-bar" role="toolbar" aria-label="Selected notes">
+		<span class="select-count">
+			{#if picked.length === 0}Tap notes in the order to combine them{:else}{plural(picked.length, 'note')} selected{/if}
+		</span>
+		<button class="btn btn-sm" onclick={stopSelecting}>Cancel</button>
+		<button class="btn btn-sm btn-primary" disabled={picked.length < 2} onclick={combinePicked}>Combine</button>
+	</div>
 {/if}
 
 {#if pasteOpen}
@@ -402,8 +503,9 @@
 {/if}
 
 {#if toast}
-	<div class="toast" role="status">
+	<div class="toast" class:raised={selecting} role="status">
 		<span>{toast.text}</span>
+		{#if toast.href}<a href={toast.href}>Open</a>{/if}
 		{#if toast.undo}<button onclick={toast.undo}>Undo</button>{/if}
 	</div>
 {/if}
@@ -701,11 +803,38 @@
 		translate: -50% 0;
 		font-size: 0.93rem;
 	}
-	.toast button {
+	.toast button,
+	.toast a {
 		border: 0;
 		background: none;
 		color: var(--accent-strong);
 		font-weight: 700;
 		cursor: pointer;
+	}
+	.toast.raised {
+		bottom: calc(4.6rem + env(safe-area-inset-bottom));
+	}
+	.select-bar {
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 30;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.7rem max(var(--gutter), env(safe-area-inset-left)) calc(0.7rem + env(safe-area-inset-bottom));
+		background: var(--surface-2);
+		border-top: 1px solid var(--border);
+		box-shadow: 0 -10px 30px rgb(0 0 0 / 0.35);
+	}
+	.select-count {
+		flex: 1;
+		min-width: 0;
+		color: var(--text-muted);
+		font-size: 0.9rem;
+	}
+	.page.selecting {
+		padding-bottom: 5rem;
 	}
 </style>

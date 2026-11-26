@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	export type NoteAction = 'star' | 'copy' | 'trash';
+	export type NoteAction = 'star' | 'used' | 'select' | 'use' | 'lyrics' | 'start' | 'copy' | 'trash';
 </script>
 
 <script lang="ts">
@@ -12,11 +12,14 @@
 	let {
 		note,
 		at,
+		online,
 		onclose,
 		onaction
 	}: {
 		note: LocalNote;
 		at: MenuAt;
+		/** The server can be reached: the song actions need it */
+		online: boolean;
 		onclose: () => void;
 		onaction: (action: NoteAction) => void;
 	} = $props();
@@ -89,8 +92,18 @@
 			<Icon name="star" size={18} />
 			{note.starred ? 'Unstar' : 'Star'}
 		</button>
-		<button role="menuitem" onclick={() => act('copy')}><Icon name="copy" size={18} /> Copy text</button>
+		<button role="menuitem" onclick={() => act('used')}>
+			<Icon name="check" size={18} />
+			{note.status === 'used' ? 'Mark as fresh' : 'Mark as used'}
+		</button>
+		<button role="menuitem" onclick={() => act('select')}><Icon name="select" size={18} /> Select (to combine)</button>
 		<hr />
+		<button role="menuitem" disabled={!online} onclick={() => act('use')}><Icon name="music" size={18} /> Use in a song…</button>
+		<button role="menuitem" disabled={!online} onclick={() => act('lyrics')}><Icon name="lyrics" size={18} /> Add to lyrics…</button>
+		<button role="menuitem" disabled={!online} onclick={() => act('start')}><Icon name="plus" size={18} /> Start a song from this</button>
+		{#if !online}<p class="offline-note">Songs need the home network.</p>{/if}
+		<hr />
+		<button role="menuitem" onclick={() => act('copy')}><Icon name="copy" size={18} /> Copy text</button>
 		<button role="menuitem" onclick={() => act('trash')}><Icon name="trash" size={18} /> Move to Trash</button>
 	</div>
 </div>
@@ -107,7 +120,9 @@
 	.menu {
 		position: fixed;
 		z-index: 41;
-		width: 220px;
+		width: 240px;
+		max-height: calc(100dvh - 16px);
+		overflow-y: auto;
 		padding: 0.35rem;
 		border-radius: var(--radius);
 		background: var(--surface-2);
@@ -117,6 +132,7 @@
 	.menu.sheet {
 		inset: auto 0 0 0;
 		width: auto;
+		max-height: 85dvh;
 		padding: 0.5rem 0.6rem calc(0.8rem + env(safe-area-inset-bottom));
 		border-radius: 16px 16px 0 0;
 		border-bottom: 0;
@@ -148,9 +164,19 @@
 		padding: 0.7rem 0.65rem;
 		font-size: 1rem;
 	}
-	[role='menu'] button:hover,
+	[role='menu'] button:hover:not(:disabled),
 	[role='menu'] button:focus-visible {
 		background: var(--surface-3);
+	}
+	[role='menu'] button:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.offline-note {
+		margin: 0;
+		padding: 0.1rem 0.65rem 0.3rem;
+		color: var(--text-faint);
+		font-size: 0.8rem;
 	}
 	.on :global(svg) {
 		color: var(--accent);

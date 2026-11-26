@@ -22,7 +22,9 @@
 		transposeLyrics
 	} from '#lib/chords.ts';
 	import Icon from '#lib/components/Icon.svelte';
+	import NotebookDrawer from '#lib/components/NotebookDrawer.svelte';
 	import StrumPattern from '#lib/components/StrumPattern.svelte';
+	import { notebook, type LocalNote } from '#lib/notebook.svelte.ts';
 	import type { LyricSection, Lyrics, Progression, ProjectDetail } from '#lib/types.ts';
 
 	// The lyrics page (spec 5.6): labeled sections of lyrics with chords placed
@@ -181,6 +183,48 @@
 		sections.push(section);
 		changed();
 		focusSoon(`text-${section.id}`);
+	}
+
+	// --- the Notebook drawer (spec 5.11, step 2) ----------------------------------------
+
+	const DRAWER_KEY = 'songvault.lyricsNotebook';
+	let drawerOpen = $state(localStorage.getItem(DRAWER_KEY) === '1');
+	$effect(() => {
+		localStorage.setItem(DRAWER_KEY, drawerOpen ? '1' : '0');
+	});
+	/** Where the cursor was last in a lyrics section, for "At cursor" */
+	let caret = $state<{ id: string; at: number } | null>(null);
+
+	function rememberCaret(id: string, el: HTMLTextAreaElement) {
+		caret = { id, at: el.selectionEnd };
+	}
+
+	/** A note from the Notebook into the lyrics: at the cursor (on lines of its own) or as a
+	 * new section. The note is then linked to this song and marked Used. */
+	function insertNote(note: LocalNote, text: string, where: 'cursor' | 'section') {
+		if (!project) return;
+		const target = where === 'cursor' && caret ? sections.find((s) => s.id === caret?.id && s.kind === 'lyrics') : null;
+		if (target && caret) {
+			const at = Math.min(caret.at, target.text.length);
+			const before = target.text.slice(0, at);
+			const after = target.text.slice(at);
+			const pre = before && !before.endsWith('\n') ? '\n' : '';
+			const post = after && !after.startsWith('\n') ? '\n' : '';
+			target.text = before + pre + text + post + after;
+			const end = (before + pre + text).length;
+			caret = { id: target.id, at: end };
+			setTimeout(() => {
+				const el = document.getElementById(`text-${target.id}`) as HTMLTextAreaElement | null;
+				el?.focus();
+				el?.setSelectionRange(end, end);
+			}, 0);
+		} else {
+			const section: LyricSection = { id: newId(), label: 'Idea', kind: 'lyrics', text };
+			sections.push(section);
+			focusSoon(`label-${section.id}`);
+		}
+		changed();
+		notebook.usedIn(note.uid, { id: project.id, name: project.name, in_trash: false });
 	}
 
 	function moveSection(i: number, direction: -1 | 1) {
@@ -471,7 +515,12 @@
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && mode === 'chords' && (brush = null)} />
 
-<div class="page" class:chords-mode={mode === 'chords'} class:scroll-mode={scrollBar && mode === 'read'}>
+<div
+	class="page"
+	class:chords-mode={mode === 'chords'}
+	class:scroll-mode={scrollBar && mode === 'read'}
+	class:with-drawer={drawerOpen && mode === 'write'}
+>
 	{#if loadError}
 		<a href="/" class="back"><Icon name="arrow-left" size={18} /> Projects</a>
 		<p class="error" role="alert">{loadError}</p>
@@ -507,6 +556,11 @@
 					<button aria-pressed={mode === 'write'} onclick={() => setMode('write')}>Write</button>
 					<button aria-pressed={mode === 'chords'} onclick={() => setMode('chords')}>Chords</button>
 				</div>
+				{#if mode === 'write'}
+					<button class="btn btn-sm" aria-pressed={drawerOpen} onclick={() => (drawerOpen = !drawerOpen)}>
+						<Icon name="notes" size={16} /> Notebook
+					</button>
+				{/if}
 				{#if mode === 'read' && hasWords}
 					<div class="zoom" role="group" aria-label="Text size">
 						<button class="btn btn-sm btn-icon" aria-label="Smaller text" disabled={scale <= 0.8} onclick={() => (scale = Math.round((scale - 0.1) * 10) / 10)}>A−</button>
@@ -670,7 +724,14 @@
 							{/if}
 						{:else}
 							<label class="visually-hidden" for="text-{s.id}">Lyrics for {s.label || 'this section'}</label>
-							<textarea id="text-{s.id}" class="field lyrics-text" placeholder="Lyrics…" bind:value={s.text} oninput={changed}></textarea>
+							<textarea
+								id="text-{s.id}"
+								class="field lyrics-text"
+								placeholder="Lyrics…"
+								bind:value={s.text}
+								oninput={changed}
+								onblur={(e) => rememberCaret(s.id, e.currentTarget)}
+							></textarea>
 						{/if}
 					</div>
 				{/each}
@@ -754,6 +815,10 @@
 		{/if}
 	{/if}
 </div>
+
+{#if project && drawerOpen && mode === 'write'}
+	<NotebookDrawer projectId={project.id} canInsert={caret !== null} oninsert={insertNote} onclose={() => (drawerOpen = false)} />
+{/if}
 
 {#if scrollBar && mode === 'read'}
 	<div class="scroll-bar" role="toolbar" aria-label="Auto-scroll">
@@ -857,6 +922,17 @@
 	}
 	.page.chords-mode {
 		padding-bottom: 19rem;
+	}
+	/* Room for the Notebook drawer: under it on phones, beside it on wide screens */
+	.page.with-drawer {
+		padding-bottom: 64dvh;
+	}
+	@media (min-width: 900px) {
+		.page.with-drawer {
+			max-width: calc(900px + 360px);
+			padding-right: calc(var(--gutter) + 360px);
+			padding-bottom: 2rem;
+		}
 	}
 	/* Room for the last lines to scroll up to eye level */
 	.page.scroll-mode {

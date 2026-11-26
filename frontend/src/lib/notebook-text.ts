@@ -38,6 +38,35 @@ export function segmentsOf(body: string): Segment[] {
 	return out;
 }
 
+/** A note's words for the lyrics page: tags taken out, and a line of nothing but tags
+ * dropped. Chords in [brackets] stay, as that's the lyrics page's own format. */
+export function lyricText(body: string): string {
+	const lines: string[] = [];
+	for (const line of body.replace(/\r\n?/g, '\n').split('\n')) {
+		const stripped = line.replace(TAG, '$1');
+		if (line.trim() && !stripped.trim()) continue;
+		const indent = stripped.length - stripped.trimStart().length;
+		lines.push((stripped.slice(0, indent) + stripped.slice(indent).replace(/ {2,}/g, ' ')).trimEnd());
+	}
+	return lines.join('\n').replace(/^\n+|\n+$/g, '');
+}
+
+/** Notes combined into one, in order: each one's text with the blank lines at its start
+ * and end trimmed, and one blank line at each join. */
+export function combineTexts(bodies: string[]): string {
+	return bodies
+		.map((b) => b.replace(/\r\n?/g, '\n').replace(/^(?:[ \t]*\n)+/, '').trimEnd())
+		.filter((b) => b.trim() !== '')
+		.join('\n\n');
+}
+
+/** The first line with words, tags out: a name for a song started from a note. */
+export function firstLine(body: string, max = 80): string {
+	const line = lyricText(body).split('\n').find((l) => l.trim()) ?? '';
+	const clean = line.replace(/\[[^\]\n]*\]/g, '').replace(/\s+/g, ' ').trim();
+	return clean.length > max ? clean.slice(0, max).trimEnd() : clean;
+}
+
 /** Lowercase, without accents: "Café" and "cafe" match. */
 export function foldText(text: string): string {
 	return text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase();

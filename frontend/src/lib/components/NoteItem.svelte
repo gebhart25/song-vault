@@ -9,12 +9,20 @@
 	let {
 		note,
 		onmenu,
-		onemptied
+		onemptied,
+		selecting = false,
+		number = null,
+		ontoggle
 	}: {
 		note: LocalNote;
 		onmenu: (at: MenuAt) => void;
 		/** Edited down to nothing: the page moves it to Trash (with Undo). */
 		onemptied: () => void;
+		/** Picking notes to combine: a tap selects instead of editing */
+		selecting?: boolean;
+		/** Its place in the selection (1, 2, 3…), null when not selected */
+		number?: number | null;
+		ontoggle?: () => void;
 	} = $props();
 
 	let editing = $state(false);
@@ -91,8 +99,19 @@
 	}
 </script>
 
-<li class="note" class:editing>
-	{#if editing}
+<li class="note" class:editing class:selecting class:picked={number !== null}>
+	{#if selecting}
+		<!-- While picking notes to combine, the whole note is one big toggle. -->
+		<button
+			class="pick"
+			aria-pressed={number !== null}
+			aria-label={number !== null ? `Note ${number} of the selection. Tap to take it out` : 'Select this note'}
+			onclick={ontoggle}
+		>
+			<span class="text clamped">{#each segments as s, i (i)}{#if s.tag}<span class="tag">{s.text}</span>{:else}{s.text}{/if}{/each}</span>
+			<span class="badge" aria-hidden="true">{number ?? ''}</span>
+		</button>
+	{:else if editing}
 		<div class="editor" {onfocusout}>
 			<textarea bind:this={box} bind:value={text} {oninput} {onkeydown} aria-label="Edit note"></textarea>
 			<div class="editor-bar">
@@ -113,6 +132,17 @@
 			>{#each segments as s, i (i)}{#if s.tag}<span class="tag">{s.text}</span>{:else}{s.text}{/if}{/each}</div>
 			{#if overflowing || expanded}
 				<button class="more" onclick={() => (expanded = !expanded)}>{expanded ? 'Less' : 'More'}</button>
+			{/if}
+			{#if note.songs.length > 0}
+				<div class="songs">
+					{#each note.songs as song (song.id)}
+						{#if song.in_trash}
+							<span class="song gone" title="This song is in Trash"><Icon name="music" size={13} /> {song.name}</span>
+						{:else}
+							<a class="song" href="/projects/{song.id}"><Icon name="music" size={13} /> {song.name}</a>
+						{/if}
+					{/each}
+				</div>
 			{/if}
 			{#if note.copy_of}
 				<div class="two-devices">
@@ -171,6 +201,76 @@
 	.tag {
 		color: var(--accent-strong);
 		font-weight: 600;
+	}
+	.songs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+		margin-top: 0.45rem;
+	}
+	.song {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		max-width: 100%;
+		padding: 0.15rem 0.55rem;
+		border-radius: 999px;
+		background: var(--surface-2);
+		color: var(--text-muted);
+		font-size: 0.8rem;
+		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	a.song:hover {
+		color: var(--text);
+	}
+	.song.gone {
+		opacity: 0.6;
+		text-decoration: line-through;
+	}
+	/* Picking notes to combine */
+	.note.picked {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+	}
+	.pick {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+		width: 100%;
+		padding: 0.7rem 0.85rem;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	.pick .text {
+		flex: 1;
+		min-width: 0;
+		cursor: pointer;
+		-webkit-line-clamp: 4;
+		line-clamp: 4;
+	}
+	.badge {
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 2px solid var(--border);
+		color: var(--accent-ink);
+		font-size: 0.9rem;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
+	}
+	.picked .badge {
+		border-color: var(--accent);
+		background: var(--accent);
 	}
 	.more {
 		margin-top: 0.2rem;

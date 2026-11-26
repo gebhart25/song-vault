@@ -6,7 +6,7 @@ Code comments that cite "spec 3.5" and so on refer to the design notes, which ar
 
 ## Status
 
-Phases 1 (the MVP), 2 (quality of life), 3 (extras) and 4 (clip editing) are built, and the first step of the Notebook. Done so far:
+Phases 1 (the MVP), 2 (quality of life), 3 (extras), 4 (clip editing) and 5 (the Notebook) are built. Done so far:
 
 - PIN setup and sign-in (4–6 digits, one-year session cookie), Change PIN in the account menu
 - Projects: create, rename (renames the media folder too), status, archive, move to Trash
@@ -26,6 +26,7 @@ Phases 1 (the MVP), 2 (quality of life), 3 (extras) and 4 (clip editing) are bui
 - Export a song as a zip: originals, trimmed and split clips cut out without re-encoding, song notes, a plain-text chord sheet, ChordPro and a JSON manifest
 - Uncategorized (a card on the Projects page that opens a play-and-sort screen) and Upload history pages (marks files **Safe to delete** once the offsite backup has them; see [Backups](#backups))
 - **Notebook** for lyric lines, rhymes, titles and song ideas: a Jot box that saves as you type, `#tags` with filter chips, search, stars, Paste notes (a whole phone notepad, split at blank lines), Trash with Undo. It works offline: the notebook is kept on the device (IndexedDB) and synced by change number when the server is reachable, with edits from two devices kept side by side rather than overwritten. Text shared from other apps becomes a note, and the home-screen icon has a **New note** shortcut
+- Notebook into songs: **Use in a song** (song chips on the note, a Notebook panel on the song page), **Add to lyrics** (a new section or the end of one, tags left out, chords kept), **Start a song from this**, a **Notebook drawer** on the Lyrics page's Write tab (at the cursor or as a new section), Used / Hide used, and **Combine notes** (pick several, numbered in the order picked, joined with a blank line); a song's zip export includes its notes
 - Installable app (PWA) with an app-shell cache (it opens without the server, in offline mode), and the **Android share target**: share videos from the gallery to Song Vault, pick the song and part, upload
 
 ## Layout

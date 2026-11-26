@@ -9,6 +9,7 @@
 	import ClipStrip from '#lib/components/ClipStrip.svelte';
 	import type { MenuAt } from '#lib/components/ClipTile.svelte';
 	import Icon from '#lib/components/Icon.svelte';
+	import SongNotebook from '#lib/components/SongNotebook.svelte';
 	import SongNotes from '#lib/components/SongNotes.svelte';
 	import { refreshCounts } from '#lib/counts.svelte.ts';
 	import { plural, shortDate, toLocalInput } from '#lib/format.ts';
@@ -529,6 +530,7 @@
 					<Icon name="lyrics" size={16} /> Lyrics &amp; chords
 					{#if project.lyric_sections > 0}<span class="muted">· {plural(project.lyric_sections, 'section')}</span>{/if}
 				</a>
+				<SongNotebook projectId={project.id} />
 			</div>
 
 			<SongNotes {project} partNames={project.rows.map((r) => r.name)} onsave={update} />

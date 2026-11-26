@@ -12,10 +12,17 @@
  * to the other one, marked "Edited on two devices".
  */
 import { fetchWithTimeout } from '#lib/net.ts';
-import { newUid } from '#lib/notebook-text.ts';
+import { combineTexts, newUid } from '#lib/notebook-text.ts';
 
 export type NoteStatus = 'fresh' | 'used';
-type Field = 'body' | 'starred' | 'status' | 'copy_of';
+type Field = 'body' | 'starred' | 'status' | 'copy_of' | 'songs';
+
+/** A song a note is linked to (step 2) */
+export interface NoteSong {
+	id: number;
+	name: string;
+	in_trash: boolean;
+}
 
 /** A note as the server sends it */
 export interface ServerNote {
@@ -25,6 +32,7 @@ export interface ServerNote {
 	status: NoteStatus;
 	revision: number;
 	copy_of: string | null;
+	songs: NoteSong[];
 	created_at: string;
 	updated_at: string;
 	deleted_at: string | null;
@@ -38,6 +46,8 @@ export interface LocalNote {
 	status: NoteStatus;
 	/** A copy made because the note was edited on two devices: the other version's uid */
 	copy_of: string | null;
+	/** The songs it's linked to */
+	songs: NoteSong[];
 	created_at: string;
 	/** The server's revision and text this device last saw (0 = never sent) */
 	revision: number;
@@ -178,6 +188,7 @@ function fromServer(s: ServerNote, version = 1): LocalNote {
 		starred: s.starred,
 		status: s.status,
 		copy_of: s.copy_of,
+		songs: s.songs ?? [],
 		created_at: s.created_at,
 		revision: s.revision,
 		server_body: s.body,
@@ -239,6 +250,7 @@ function toChange(n: LocalNote) {
 		starred: has('starred') ? n.starred : null,
 		status: has('status') ? n.status : null,
 		copy_of: isNew ? n.copy_of : n.pending.includes('copy_of') ? (n.copy_of ?? '') : null,
+		songs: has('songs') ? n.songs.map((s) => s.id) : null,
 		trash: n.trash
 	};
 }
@@ -383,7 +395,8 @@ async function start(): Promise<void> {
 	started = true;
 	try {
 		const saved = await readAll();
-		for (const n of saved.notes) byUid.set(n.uid, n);
+		// Notes kept before songs were added (step 1) have none.
+		for (const n of saved.notes) byUid.set(n.uid, { ...n, songs: n.songs ?? [] });
 		cursor = saved.cursor;
 	} catch (e) {
 		console.error('Notebook: this device can’t keep notes (IndexedDB unavailable)', e);
@@ -431,6 +444,7 @@ function create(body: string, createdAt = new Date().toISOString()): string {
 		starred: false,
 		status: 'fresh',
 		copy_of: null,
+		songs: [],
 		created_at: createdAt,
 		revision: 0,
 		server_body: '',
@@ -484,6 +498,37 @@ function discard(uid: string): void {
 	else trash(uid);
 }
 
+/** The note went into a song's lyrics: link it to that song and mark it Used. */
+function usedIn(uid: string, song: NoteSong): void {
+	const note = byUid.get(uid);
+	if (!note) return;
+	const songs = note.songs.some((s) => s.id === song.id) ? note.songs : [...note.songs, song];
+	update(uid, { status: 'used', songs });
+}
+
+/** Combine notes into the first one, in the order given (spec 5.11): their text with a
+ * blank line at each join, starred if any was, every song any was in, Used only if all
+ * were. The others go to Trash. Returns what undoes it, or null with fewer than two. */
+function combine(uids: string[]): (() => void) | null {
+	const picked = uids.map((u) => byUid.get(u)).filter((n): n is LocalNote => !!n && !n.trash);
+	if (picked.length < 2) return null;
+	const [first, ...rest] = picked;
+	const before = { body: first.body, starred: first.starred, status: first.status, songs: first.songs };
+	const songs: NoteSong[] = [];
+	for (const n of picked) for (const s of n.songs) if (!songs.some((x) => x.id === s.id)) songs.push(s);
+	update(first.uid, {
+		body: combineTexts(picked.map((n) => n.body)),
+		starred: picked.some((n) => n.starred),
+		status: picked.every((n) => n.status === 'used') ? 'used' : 'fresh',
+		songs
+	});
+	for (const n of rest) trash(n.uid);
+	return () => {
+		update(first.uid, before);
+		for (const n of rest) void untrash(n.uid);
+	};
+}
+
 /** Undo moving a note to Trash. Once that has reached the server, it takes the server
  * to bring it back. False if that wasn't possible (offline). */
 async function untrash(uid: string): Promise<boolean> {
@@ -526,5 +571,7 @@ export const notebook = {
 	update,
 	trash,
 	discard,
-	untrash
+	untrash,
+	usedIn,
+	combine
 };

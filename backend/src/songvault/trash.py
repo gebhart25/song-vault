@@ -21,7 +21,16 @@ from . import media
 from .config import Settings
 from .db import connect
 from .deps import get_db
-from .projects import CLIP_COLUMNS, CLIP_FROM, NEWEST_THUMB_SQL, ClipSummary, ProjectStatus, clip_summary, cover_of
+from .projects import (
+    CLIP_COLUMNS,
+    CLIP_FROM,
+    NEWEST_THUMB_SQL,
+    ClipSummary,
+    ProjectStatus,
+    clip_summary,
+    cover_of,
+    touch_song_notes,
+)
 
 log = logging.getLogger("songvault.trash")
 
@@ -171,6 +180,7 @@ def purge_trash(settings: Settings, now: datetime | None = None) -> tuple[int, i
             _remove_files(settings, [recording[c] for c in media.RECORDING_FILES])
         for project in projects:
             with conn:
+                touch_song_notes(conn, project["id"])  # its notes lose the link (spec 5.11)
                 conn.execute("DELETE FROM projects WHERE id = ?", (project["id"],))
             _remove_files(settings, [project["cover_path"]])  # its picture (spec 3.1)
             folder = settings.media_dir / media.folder_for(project["slug"])
