@@ -244,7 +244,7 @@
 							</div>
 							<p class="meta">
 								{plural(p.clip_count, 'clip')} · Updated {shortDate(p.updated_at)}
-								{#if p.kind !== 'original'}<span class="kind" data-kind={p.kind}>{kindLabel(p.kind)}</span>{/if}
+								<span class="kind" data-kind={p.kind}>{kindLabel(p.kind)}</span>
 								{#if p.archived}<span class="pill">Archived</span>{/if}
 							</p>
 						</div>
@@ -375,7 +375,7 @@
 		flex: 0 0 auto;
 		width: auto;
 	}
-	/* A song's type on its card, when it isn't an original */
+	/* A song's type on its card (Original, Cover…) */
 	.kind {
 		padding: 0.05rem 0.5rem;
 		border-radius: 999px;
@@ -383,6 +383,10 @@
 		color: var(--text-muted);
 		font-size: 0.75rem;
 		font-weight: 650;
+	}
+	.kind[data-kind='original'] {
+		border-color: rgb(240 166 70 / 0.45);
+		color: var(--accent-strong);
 	}
 	.kind[data-kind='cover'] {
 		border-color: rgb(156 194 255 / 0.4);
