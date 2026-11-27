@@ -434,6 +434,41 @@
 		scrolling = false;
 	}
 
+	// --- copying from the sheet ----------------------------------------------------------
+
+	let sheetEl: HTMLElement | undefined = $state();
+
+	/** Copying from the Read view gives the words as plain lines. Each word sits in a box of
+	 * its own, to keep its chord above it, and the browser would copy a line per box.
+	 * Section labels, blank lines and chords-only lines (D - Bm - G - A) come along as they
+	 * are; chords over the words are left out. */
+	function copySheet(e: ClipboardEvent) {
+		const selection = window.getSelection();
+		if (!selection || selection.isCollapsed || !sheetEl || !e.clipboardData) return;
+		const range = selection.getRangeAt(0);
+		const touched = (el: Element) => range.intersectsNode(el);
+		const text = (el: Element) => (el.textContent ?? '').replace(/ /g, ' ');
+		const parts: string[] = [];
+		for (const section of sheetEl.querySelectorAll('.sheet-section')) {
+			if (!touched(section)) continue;
+			const lines: string[] = [];
+			const label = section.querySelector('.sec-label');
+			if (label && touched(label)) lines.push(text(label).trim());
+			for (const line of section.querySelectorAll('.line, .chord-line')) {
+				if (!touched(line)) continue;
+				lines.push(
+					line.classList.contains('chord-line')
+						? text(line).trim()
+						: [...line.querySelectorAll('.lyric')].filter(touched).map(text).join('').trim()
+				);
+			}
+			parts.push(lines.join('\n'));
+		}
+		if (!parts.length) return;
+		e.preventDefault();
+		e.clipboardData.setData('text/plain', parts.join('\n\n').trim());
+	}
+
 	function setMode(next: Mode) {
 		if (next !== 'read') stopScroll();
 		mode = next;
@@ -502,6 +537,8 @@
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && mode === 'chords' && (brush = null)} />
+<!-- On the document: a copy that starts above the sheet (Ctrl+A) is the sheet's too. -->
+<svelte:document oncopy={copySheet} />
 
 <div class="page" class:chords-mode={mode === 'chords'} class:scroll-mode={scrollBar && mode === 'read'}>
 	{#if loadError}
@@ -621,7 +658,13 @@
 				{#if twoColumns}<p class="columns-note">Two columns show on wider screens and when printing.</p>{/if}
 				<!-- Tapping the sheet pauses or resumes auto-scroll (a big target while holding a guitar). -->
 				<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-				<article class="sheet" class:two-columns={twoColumns} style:--scale={scale} onclick={() => scrollBar && toggleScroll()}>
+				<article
+					class="sheet"
+					class:two-columns={twoColumns}
+					style:--scale={scale}
+					bind:this={sheetEl}
+					onclick={() => scrollBar && toggleScroll()}
+				>
 					{#each sections as s (s.id)}
 						<section class="sheet-section">
 							{#if s.label}<h2 class="sec-label">{s.label}</h2>{/if}
