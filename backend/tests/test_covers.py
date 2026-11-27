@@ -62,7 +62,7 @@ def test_migration_adds_cover_columns(tmp_path: Path) -> None:
 
 
 def test_automatic_cover_is_the_newest_thumbnail(authed: TestClient, project: dict, settings: Settings) -> None:
-    assert _card(authed, project["id"])["cover"] == {"kind": "auto", "url": None, "stock": None, "clip_id": None}
+    assert _card(authed, project["id"])["cover"] == {"kind": "auto", "url": None, "stock": None, "clip_id": None, "color": None}
     _clip_with_thumbnail(settings, project["id"], "old", "2026-10-01T12:00:00.000Z")
     newest = _clip_with_thumbnail(settings, project["id"], "new", "2026-11-20T12:00:00.000Z")
     card = _card(authed, project["id"])
@@ -75,7 +75,9 @@ def test_stock_cover(authed: TestClient, project: dict) -> None:
     pid = project["id"]
     r = authed.put(f"/api/projects/{pid}/cover", json={"kind": "stock", "stock": "night-drive"})
     assert r.status_code == 200, r.text
-    assert r.json() == {"kind": "stock", "url": "/covers/night-drive.svg", "stock": "night-drive", "clip_id": None}
+    assert r.json() == {
+        "kind": "stock", "url": "/covers/night-drive.svg", "stock": "night-drive", "clip_id": None, "color": None
+    }  # fmt: skip
     assert _card(authed, pid)["cover_thumbnail_url"] == "/covers/night-drive.svg"
 
     for bad in ("../x", "Sunset", "a/b", ""):
@@ -85,6 +87,28 @@ def test_stock_cover(authed: TestClient, project: dict) -> None:
 
     r = authed.put(f"/api/projects/{pid}/cover", json={"kind": "auto"})
     assert r.json()["kind"] == "auto"
+
+
+def test_solid_colour_cover(authed: TestClient, project: dict) -> None:
+    pid = project["id"]
+    r = authed.put(f"/api/projects/{pid}/cover", json={"kind": "color", "color": "#3A7BD5"})
+    assert r.status_code == 200, r.text
+    cover = r.json()
+    assert (cover["kind"], cover["color"], cover["stock"]) == ("color", "#3a7bd5", None)
+    # A one-colour picture, so anything that shows a song's picture shows it.
+    assert cover["url"].startswith("data:image/svg+xml,") and "fill='%233a7bd5'" in cover["url"]
+    card = _card(authed, pid)
+    assert card["cover_thumbnail_url"] == cover["url"] and card["cover"]["color"] == "#3a7bd5"
+
+    for bad in ("3a7bd5", "#3a7bd", "#3a7bdz", "red", "#3a7bd5ff"):
+        assert authed.put(f"/api/projects/{pid}/cover", json={"kind": "color", "color": bad}).status_code == 422
+    assert authed.put(f"/api/projects/{pid}/cover", json={"kind": "color"}).status_code == 422
+
+    # Another choice replaces it.
+    r = authed.put(f"/api/projects/{pid}/cover", json={"kind": "stock", "stock": "vinyl"})
+    assert (r.json()["kind"], r.json()["color"]) == ("stock", None)
+    authed.put(f"/api/projects/{pid}/cover", json={"kind": "color", "color": "#e05d44"})
+    assert authed.put(f"/api/projects/{pid}/cover", json={"kind": "auto"}).json()["color"] is None
 
 
 def test_cover_from_a_clip_is_a_copy(authed: TestClient, project: dict, settings: Settings) -> None:

@@ -165,13 +165,17 @@ class ClipSummary(BaseModel):
 class Cover(BaseModel):
     """A song's picture on the Projects page (spec 3.1)."""
 
-    kind: Literal["auto", "stock", "image"]
+    kind: Literal["auto", "stock", "image", "color"]
     """auto = the newest clip thumbnail; stock = a picture that ships with the app;
-    image = the user's own (a copied clip thumbnail or an upload)."""
+    image = the user's own (a copied clip thumbnail or an upload); color = a solid colour."""
     url: str | None
+    """What to show (for a colour, a one-colour SVG as a data: URL, so anything that
+    shows a picture shows it)."""
     stock: str | None = None
     clip_id: int | None = None
     """For an image copied from a clip's thumbnail: that clip."""
+    color: str | None = None
+    """For a solid colour: "#rrggbb"."""
 
 
 class ProjectSummary(BaseModel):
@@ -305,6 +309,12 @@ NEWEST_THUMB_SQL = """
 """
 
 
+def color_url(color: str) -> str:
+    """A solid colour as a picture: a 16:9 one-colour SVG in a data: URL."""
+    svg = f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'><rect width='16' height='9' fill='{color}'/></svg>"
+    return "data:image/svg+xml," + svg.replace("<", "%3C").replace(">", "%3E").replace("#", "%23")
+
+
 def cover_of(row: sqlite3.Row) -> Cover:
     """A song's picture: the chosen one, else its newest thumbnail. `row` is a project
     row with NEWEST_THUMB_SQL."""
@@ -314,6 +324,8 @@ def cover_of(row: sqlite3.Row) -> Cover:
         return Cover(kind="image", url=f"/api/projects/{row['id']}/cover?v={version}", clip_id=row["cover_clip_id"])
     if row["cover_stock"]:
         return Cover(kind="stock", url=f"/covers/{row['cover_stock']}.svg", stock=row["cover_stock"])
+    if row["cover_color"]:
+        return Cover(kind="color", url=color_url(row["cover_color"]), color=row["cover_color"])
     newest = row["newest_thumb_clip_id"]
     return Cover(kind="auto", url=f"/api/clips/{newest}/thumbnail" if newest else None)
 

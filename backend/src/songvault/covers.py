@@ -3,6 +3,7 @@
 A song's card shows, in order: a picture the user picked, or else its newest clip
 thumbnail (automatic). A picked picture is one of:
 - a stock picture that ships with the app (`/covers/<name>.svg`, listed in the frontend);
+- a solid colour;
 - a copy of one of the song's clip thumbnails;
 - an image the user uploaded.
 The last two are kept in `.covers/` in the media folder, so the nightly offsite backup
@@ -34,11 +35,13 @@ COVER_MAX_SIDE = 1600  # px, longest side of a stored upload
 
 
 class CoverIn(BaseModel):
-    kind: Literal["auto", "stock", "clip"]
+    kind: Literal["auto", "stock", "clip", "color"]
     stock: str | None = Field(default=None, pattern=r"^[a-z0-9-]{1,40}$")
     """A stock picture's name (kind stock)."""
     clip_id: int | None = None
     """One of the song's clips (kind clip): its thumbnail is copied."""
+    color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    """A solid colour, "#rrggbb" (kind color)."""
 
 
 def _new_path(project_id: int) -> str:
@@ -61,13 +64,14 @@ def _save(
     stock: str | None = None,
     path: str | None = None,
     clip_id: int | None = None,
+    color: str | None = None,
 ) -> Cover:
     """Store the song's new picture choice and delete the file of the old one."""
     try:
         with conn:
             conn.execute(
-                "UPDATE projects SET cover_stock = ?, cover_path = ?, cover_clip_id = ? WHERE id = ?",
-                (stock, path, clip_id, project["id"]),
+                "UPDATE projects SET cover_stock = ?, cover_path = ?, cover_clip_id = ?, cover_color = ? WHERE id = ?",
+                (stock, path, clip_id, color, project["id"]),
             )
     except Exception:
         _remove(settings, path)
@@ -79,7 +83,8 @@ def _save(
 
 @router.put("/{project_id}/cover")
 def set_cover(project_id: int, body: CoverIn, request: Request, conn: sqlite3.Connection = Depends(get_db)) -> Cover:
-    """Automatic, a stock picture, or a copy of one of the song's clip thumbnails."""
+    """Automatic, a stock picture, a solid colour, or a copy of one of the song's clip
+    thumbnails."""
     settings: Settings = request.app.state.settings
     project = get_project_row(conn, project_id)
     if body.kind == "auto":
@@ -88,6 +93,10 @@ def set_cover(project_id: int, body: CoverIn, request: Request, conn: sqlite3.Co
         if not body.stock:
             raise HTTPException(422, "Pick a picture")
         return _save(conn, settings, project, stock=body.stock)
+    if body.kind == "color":
+        if not body.color:
+            raise HTTPException(422, "Pick a colour")
+        return _save(conn, settings, project, color=body.color.lower())
 
     if body.clip_id is None:
         raise HTTPException(422, "Pick a clip")

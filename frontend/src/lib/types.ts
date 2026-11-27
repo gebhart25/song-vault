@@ -179,12 +179,15 @@ export interface Trash {
 /** A song's picture on the Projects page (spec 3.1) */
 export interface Cover {
 	/** auto = the newest clip thumbnail; stock = a picture that ships with the app;
-	 * image = the user's own (a copied clip thumbnail or an upload) */
-	kind: 'auto' | 'stock' | 'image';
+	 * image = the user's own (a copied clip thumbnail or an upload); color = a solid colour */
+	kind: 'auto' | 'stock' | 'image' | 'color';
+	/** What to show (for a colour, a one-colour picture) */
 	url: string | null;
 	stock: string | null;
 	/** For an image copied from a clip's thumbnail: that clip */
 	clip_id: number | null;
+	/** For a solid colour: "#rrggbb" */
+	color: string | null;
 }
 
 export interface ProjectSummary {

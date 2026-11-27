@@ -10,7 +10,7 @@ Phases 1 (the MVP), 2 (quality of life), 3 (extras), 4 (clip editing) and 5 (the
 
 - PIN setup and sign-in (4–6 digits, one-year session cookie), Change PIN in the account menu
 - Projects: create, rename (renames the media folder too), status, archive, move to Trash
-- Projects page cards: long-press / right-click to set the status or type or change the thumbnail; pictures from the song's clips, 12 stock artworks (`frontend/static/covers/`) or an upload
+- Projects page cards: long-press / right-click to set the status or type or change the thumbnail; pictures from the song's clips, 20 stock artworks (`frontend/static/covers/`), a solid colour, or an upload you crop to the card's shape (pan and zoom)
 - Song types (Original, Co-write, Cover, Arrangement, Practice) with a type filter on the Projects page, next to the status filter
 - Song notes: key, BPM, time signature, capo, tuning, "sounds like", labeled chord progressions, strumming patterns (arrows with beat counts), general notes
 - Lyrics & chords page: labeled sections, chord sheet view, tap-to-place chords (from the song's progressions or key; on a word, or before or after a line), autosave with conflict check; transpose (view or save in the new key), auto-scroll with the screen kept on, two-column view, the song's strumming patterns on the sheet, print view (in one or two columns, with strumming if it's on)

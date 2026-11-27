@@ -3,12 +3,13 @@
 	import { page } from '$app/state';
 	import { ApiError, api } from '#lib/api.ts';
 	import Icon from '#lib/components/Icon.svelte';
-	import { STOCK_COVERS, shrinkImage, stockUrl } from '#lib/covers.ts';
+	import CoverCropper from '#lib/components/CoverCropper.svelte';
+	import { COVER_COLORS, STOCK_COVERS, stockUrl } from '#lib/covers.ts';
 	import { shortDate } from '#lib/format.ts';
 	import type { ClipSummary, Cover, ProjectDetail } from '#lib/types.ts';
 
 	// A song's picture on the Projects page (spec 3.1): one of its clip thumbnails, stock
-	// artwork, or an image of the user's own. Each choice applies straight away.
+	// artwork, a solid colour, or an image of the user's own. Each choice applies straight away.
 
 	const id = $derived(Number(page.params.id));
 
@@ -45,8 +46,12 @@
 		if (!cover) return '';
 		if (cover.kind === 'auto') return cover.url ? 'Automatic: the newest clip’s thumbnail' : 'Automatic: no thumbnails yet';
 		if (cover.kind === 'stock') return `Artwork: ${STOCK_COVERS.find((s) => s.id === cover?.stock)?.name ?? cover.stock}`;
+		if (cover.kind === 'color') return `Solid colour: ${COVER_COLORS.find((c) => c.color === cover?.color)?.name ?? cover.color}`;
 		return cover.clip_id ? 'From one of your clips' : 'Your own image';
 	});
+
+	/** A colour picked with "Pick any colour", not one of the swatches */
+	const ownColor = $derived(cover?.kind === 'color' && !COVER_COLORS.some((c) => c.color === cover?.color));
 
 	async function choose(key: string, request: () => Promise<Cover>) {
 		if (saving) return;
@@ -66,20 +71,21 @@
 		choose(`stock:${stock}`, () => api.put<Cover>(`/projects/${id}/cover`, { kind: 'stock', stock }));
 	const useClip = (clipId: number) =>
 		choose(`clip:${clipId}`, () => api.put<Cover>(`/projects/${id}/cover`, { kind: 'clip', clip_id: clipId }));
+	const useColor = (color: string) =>
+		choose(`color:${color}`, () => api.put<Cover>(`/projects/${id}/cover`, { kind: 'color', color }));
 
-	async function upload() {
+	/** An image chosen to upload, being cropped to the card's shape first */
+	let cropping = $state<File | null>(null);
+
+	function upload() {
 		const file = fileInput?.files?.[0];
 		if (fileInput) fileInput.value = '';
-		if (!file) return;
-		await choose('upload', async () => {
-			let image: Blob;
-			try {
-				image = await shrinkImage(file);
-			} catch {
-				throw new ApiError(0, 'This image can’t be opened here. Try a JPEG or PNG.');
-			}
-			return api.put<Cover>(`/projects/${id}/cover/image`, image);
-		});
+		if (file) cropping = file;
+	}
+
+	async function useCropped(image: Blob) {
+		cropping = null;
+		await choose('upload', () => api.put<Cover>(`/projects/${id}/cover/image`, image));
 	}
 
 	// A stable accent for a song without a picture, as on the Projects page.
@@ -163,8 +169,42 @@
 		</section>
 
 		<section>
+			<h2>Solid colour</h2>
+			<div class="swatches">
+				{#each COVER_COLORS as c (c.color)}
+					<button
+						class="choice swatch"
+						style:background={c.color}
+						aria-pressed={cover.kind === 'color' && cover.color === c.color}
+						aria-label="Use {c.name}"
+						title={c.name}
+						disabled={!!saving}
+						onclick={() => useColor(c.color)}
+					>
+						{#if saving === `color:${c.color}`}<span class="busy" aria-hidden="true"></span>{/if}
+					</button>
+				{/each}
+			</div>
+			<div class="upload-row any-color">
+				<label class="btn" class:disabled={!!saving}>
+					<input
+						class="color-input"
+						type="color"
+						value={cover.color ?? '#3a7bd5'}
+						disabled={!!saving}
+						onchange={(e) => useColor(e.currentTarget.value)}
+					/>
+					Pick any colour
+				</label>
+				{#if ownColor}
+					<span class="in-use"><Icon name="check" size={16} stroke={2.5} /> Your colour ({cover.color}) is in use</span>
+				{/if}
+			</div>
+		</section>
+
+		<section>
 			<h2>Your own image</h2>
-			<p class="muted note">Album art, a photo, a sketch: JPEG, PNG or WebP. It’s resized to fit 1600 px.</p>
+			<p class="muted note">Album art, a photo, a sketch: JPEG, PNG or WebP. You crop it to the card’s shape next.</p>
 			<!-- Chrome on Android opens its photo picker when every accepted type is an image or
 			     video. One type that matches no file (a known workaround) gets the "Choose an action"
 			     sheet instead, as Upload clip does: Camera, and Files, where Gallery is a source.
@@ -182,6 +222,10 @@
 		</section>
 	{/if}
 </div>
+
+{#if cropping}
+	<CoverCropper file={cropping} onconfirm={useCropped} oncancel={() => (cropping = null)} />
+{/if}
 
 <style>
 	.page {
@@ -346,6 +390,30 @@
 		to {
 			rotate: 360deg;
 		}
+	}
+	.swatches {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+		gap: 0.55rem;
+	}
+	.swatch {
+		border-color: rgb(255 255 255 / 0.08);
+	}
+	.any-color {
+		margin-top: 0.75rem;
+	}
+	.color-input {
+		width: 26px;
+		height: 26px;
+		padding: 0;
+		border: 0;
+		border-radius: 6px;
+		background: none;
+		cursor: pointer;
+	}
+	.btn.disabled {
+		opacity: 0.6;
+		pointer-events: none;
 	}
 	.upload-row {
 		display: flex;
