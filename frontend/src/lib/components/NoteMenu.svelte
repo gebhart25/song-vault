@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	export type NoteAction = 'star' | 'used' | 'select' | 'use' | 'lyrics' | 'start' | 'copy' | 'trash';
+	export type NoteAction = 'top' | 'star' | 'used' | 'select' | 'use' | 'start' | 'copy' | 'trash';
 </script>
 
 <script lang="ts">
@@ -88,6 +88,7 @@
 >
 	<p class="menu-title">{title}</p>
 	<div role="menu" aria-label="Note">
+		<button role="menuitem" onclick={() => act('top')}><Icon name="arrow-up" size={18} /> Move to top</button>
 		<button role="menuitem" class:on={note.starred} onclick={() => act('star')}>
 			<Icon name="star" size={18} />
 			{note.starred ? 'Unstar' : 'Star'}
@@ -99,7 +100,6 @@
 		<button role="menuitem" onclick={() => act('select')}><Icon name="select" size={18} /> Select (to combine)</button>
 		<hr />
 		<button role="menuitem" disabled={!online} onclick={() => act('use')}><Icon name="music" size={18} /> Use in a song…</button>
-		<button role="menuitem" disabled={!online} onclick={() => act('lyrics')}><Icon name="lyrics" size={18} /> Add to lyrics…</button>
 		<button role="menuitem" disabled={!online} onclick={() => act('start')}><Icon name="plus" size={18} /> Start a song from this</button>
 		{#if !online}<p class="offline-note">Songs need the home network.</p>{/if}
 		<hr />

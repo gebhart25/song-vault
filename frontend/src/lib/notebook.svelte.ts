@@ -15,7 +15,7 @@ import { fetchWithTimeout } from '#lib/net.ts';
 import { combineTexts, newUid } from '#lib/notebook-text.ts';
 
 export type NoteStatus = 'fresh' | 'used';
-type Field = 'body' | 'starred' | 'status' | 'copy_of' | 'songs';
+type Field = 'body' | 'starred' | 'status' | 'copy_of' | 'songs' | 'created_at';
 
 /** A song a note is linked to (step 2) */
 export interface NoteSong {
@@ -251,6 +251,8 @@ function toChange(n: LocalNote) {
 		status: has('status') ? n.status : null,
 		copy_of: isNew ? n.copy_of : n.pending.includes('copy_of') ? (n.copy_of ?? '') : null,
 		songs: has('songs') ? n.songs.map((s) => s.id) : null,
+		// Move to top: its new date (a new note's date goes as created_at)
+		moved_at: !isNew && n.pending.includes('created_at') ? n.created_at : null,
 		trash: n.trash
 	};
 }
@@ -498,12 +500,13 @@ function discard(uid: string): void {
 	else trash(uid);
 }
 
-/** The note went into a song's lyrics: link it to that song and mark it Used. */
-function usedIn(uid: string, song: NoteSong): void {
+/** Move to top: the note's date becomes now, so it's the newest. Returns what undoes it. */
+function moveToTop(uid: string): (() => void) | null {
 	const note = byUid.get(uid);
-	if (!note) return;
-	const songs = note.songs.some((s) => s.id === song.id) ? note.songs : [...note.songs, song];
-	update(uid, { status: 'used', songs });
+	if (!note) return null;
+	const was = note.created_at;
+	update(uid, { created_at: new Date().toISOString() });
+	return () => update(uid, { created_at: was });
 }
 
 /** Combine notes into the first one, in the order given (spec 5.11): their text with a
@@ -572,6 +575,6 @@ export const notebook = {
 	trash,
 	discard,
 	untrash,
-	usedIn,
+	moveToTop,
 	combine
 };

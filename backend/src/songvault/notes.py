@@ -12,8 +12,8 @@ and synced later. So:
 - A device sends its changes with the revision and the text they started from. If the
   text changed elsewhere since (edited on the PC while the phone was away), the edit is
   refused as a conflict and the device keeps its version as a copy, marked "Edited on
-  two devices", rather than overwrite the other one. Stars, Used / fresh and the songs
-  a note is linked to (step 2) simply take the last change.
+  two devices", rather than overwrite the other one. Stars, Used / fresh, the songs a
+  note is linked to (step 2) and Move to top (a new date) simply take the last change.
 - A note carries its songs' names and whether they're in Trash, so the device can show
   them offline. Renaming a song, or moving it to Trash and back, gives its notes a new
   change number so devices fetch them again (projects.touch_song_notes).
@@ -90,6 +90,9 @@ class NoteChange(BaseModel):
     """"" clears it (the user dismissed "Edited on two devices")."""
     songs: list[int] | None = Field(default=None, max_length=200)
     """The songs it's linked to, all of them (ids of songs that don't exist are left out)."""
+    moved_at: str | None = None
+    """Move to top: the note's date becomes this (the device's time when it was moved).
+    Sent only when moved, so a change from a device that hasn't heard of it can't undo it."""
     trash: bool = False
 
 
@@ -266,6 +269,10 @@ def apply_change(conn: sqlite3.Connection, change: NoteChange) -> ChangeResult:
             updates["status"] = change.status
         if change.copy_of is not None and (change.copy_of or None) != row["copy_of"]:
             updates["copy_of"] = change.copy_of or None
+        if change.moved_at is not None:
+            moved = _written_at(change.moved_at, now)
+            if moved != row["created_at"]:
+                updates["created_at"] = moved
         songs_changed = change.songs is not None and _wanted_songs(conn, change.songs) != _linked(conn, row["id"])
         if not updates and not songs_changed:
             return ChangeResult(uid=change.uid, note=current)

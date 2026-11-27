@@ -99,6 +99,24 @@ def test_edits_carry_their_starting_point(authed: TestClient) -> None:
     assert authed.get("/api/notes").json()["cursor"] == before
 
 
+def test_move_to_top(authed: TestClient) -> None:
+    [r] = send(authed, new(A, "an old idea"))
+    old = r["note"]
+    assert old["created_at"] == "2026-11-26T09:30:00.000Z"
+
+    [r] = send(authed, edit(old, moved_at="2026-11-27T08:15:00Z"))
+    moved = r["note"]
+    assert (moved["created_at"], moved["revision"], moved["body"]) == ("2026-11-27T08:15:00.000Z", 2, "an old idea")
+
+    # A device that hasn't heard of the move doesn't undo it: it only sends what it changed.
+    [r] = send(authed, edit(old, starred=True))
+    assert r["note"]["created_at"] == "2026-11-27T08:15:00.000Z" and r["note"]["starred"] is True
+
+    # A date that can't be right becomes the server's now.
+    [r] = send(authed, edit(r["note"], moved_at="the future"))
+    assert abs(datetime.fromisoformat(r["note"]["created_at"]) - datetime.now(UTC)) < timedelta(minutes=1)
+
+
 def test_a_copy_from_two_devices(authed: TestClient) -> None:
     [r] = send(authed, new(B, "my version", copy_of=A))
     assert r["note"]["copy_of"] == A

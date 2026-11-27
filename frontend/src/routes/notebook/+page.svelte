@@ -201,11 +201,11 @@
 	let menu = $state<{ note: LocalNote; at: MenuAt } | null>(null);
 	let pageMenuOpen = $state(false);
 	let songDialog = $state<{ note: LocalNote; mode: SongDialogMode } | null>(null);
-	let toast = $state<{ text: string; undo?: () => void; href?: string } | null>(null);
+	let toast = $state<{ text: string; undo?: () => void } | null>(null);
 	let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
-	function say(text: string, undo?: () => void, href?: string) {
-		toast = { text, undo, href };
+	function say(text: string, undo?: () => void) {
+		toast = { text, undo };
 		clearTimeout(toastTimer);
 		toastTimer = setTimeout(() => (toast = null), 6000);
 	}
@@ -272,11 +272,23 @@
 		}
 	}
 
+	/** Move to top: the note's date becomes now. Starred notes stay above it. */
+	function moveToTop(note: LocalNote) {
+		const undo = notebook.moveToTop(note.uid);
+		if (!undo) return;
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+		say('Moved to the top', () => {
+			toast = null;
+			undo();
+		});
+	}
+
 	async function act(action: NoteAction, note: LocalNote) {
-		if (action === 'star') notebook.update(note.uid, { starred: !note.starred });
+		if (action === 'top') moveToTop(note);
+		else if (action === 'star') notebook.update(note.uid, { starred: !note.starred });
 		else if (action === 'used') notebook.update(note.uid, { status: note.status === 'used' ? 'fresh' : 'used' });
 		else if (action === 'select') startSelecting(note.uid);
-		else if (action === 'use' || action === 'lyrics' || action === 'start') songDialog = { note, mode: action };
+		else if (action === 'use' || action === 'start') songDialog = { note, mode: action };
 		else if (action === 'trash') trashNote(note.uid);
 		else {
 			await copyText(note.body);
@@ -464,7 +476,7 @@
 		note={songDialog.note}
 		mode={songDialog.mode}
 		onclose={() => (songDialog = null)}
-		ondone={(text, href) => say(text, undefined, href)}
+		ondone={(text) => say(text)}
 	/>
 {/if}
 
@@ -505,7 +517,6 @@
 {#if toast}
 	<div class="toast" class:raised={selecting} role="status">
 		<span>{toast.text}</span>
-		{#if toast.href}<a href={toast.href}>Open</a>{/if}
 		{#if toast.undo}<button onclick={toast.undo}>Undo</button>{/if}
 	</div>
 {/if}
@@ -803,8 +814,7 @@
 		translate: -50% 0;
 		font-size: 0.93rem;
 	}
-	.toast button,
-	.toast a {
+	.toast button {
 		border: 0;
 		background: none;
 		color: var(--accent-strong);

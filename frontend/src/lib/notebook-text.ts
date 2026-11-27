@@ -38,9 +38,9 @@ export function segmentsOf(body: string): Segment[] {
 	return out;
 }
 
-/** A note's words for the lyrics page: tags taken out, and a line of nothing but tags
- * dropped. Chords in [brackets] stay, as that's the lyrics page's own format. */
-export function lyricText(body: string): string {
+/** A note's words without its tags: tags taken out, and a line of nothing but tags
+ * dropped. Chords in [brackets] stay. */
+export function wordsOf(body: string): string {
 	const lines: string[] = [];
 	for (const line of body.replace(/\r\n?/g, '\n').split('\n')) {
 		const stripped = line.replace(TAG, '$1');
@@ -62,7 +62,7 @@ export function combineTexts(bodies: string[]): string {
 
 /** The first line with words, tags out: a name for a song started from a note. */
 export function firstLine(body: string, max = 80): string {
-	const line = lyricText(body).split('\n').find((l) => l.trim()) ?? '';
+	const line = wordsOf(body).split('\n').find((l) => l.trim()) ?? '';
 	const clean = line.replace(/\[[^\]\n]*\]/g, '').replace(/\s+/g, ' ').trim();
 	return clean.length > max ? clean.slice(0, max).trimEnd() : clean;
 }
