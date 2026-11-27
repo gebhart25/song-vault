@@ -22,7 +22,10 @@
 		transposeLyrics
 	} from '#lib/chords.ts';
 	import Icon from '#lib/components/Icon.svelte';
+	import RhymePanel from '#lib/components/RhymePanel.svelte';
 	import StrumPattern from '#lib/components/StrumPattern.svelte';
+	import SyllableGutter from '#lib/components/SyllableGutter.svelte';
+	import { wordAt } from '#lib/notebook-text.ts';
 	import type { LyricSection, Lyrics, Progression, ProjectDetail } from '#lib/types.ts';
 
 	// The lyrics page (spec 5.6): labeled sections of lyrics with chords placed
@@ -181,6 +184,35 @@
 		sections.push(section);
 		changed();
 		focusSoon(`text-${section.id}`);
+	}
+
+	// --- writing helpers (spec 5.11): syllables per line, rhymes ---------------------------
+
+	const SYLLABLES_KEY = 'songvault.lyricsSyllables';
+	let syllables = $state(localStorage.getItem(SYLLABLES_KEY) === '1');
+	$effect(() => {
+		localStorage.setItem(SYLLABLES_KEY, syllables ? '1' : '0');
+	});
+	/** Each lyrics section's textarea, for its syllable counts */
+	const textareas: Record<string, HTMLTextAreaElement> = $state({});
+
+	/** The Rhymes panel: the word it opened with (null = closed), and where to go back to */
+	let rhymeWord = $state<string | null>(null);
+	let rhymeFrom: HTMLTextAreaElement | null = null;
+
+	// Pressing the button would take the focus off the lyrics, so look before it does.
+	function rhymesPress() {
+		const el = document.activeElement;
+		rhymeFrom = el instanceof HTMLTextAreaElement && el.classList.contains('lyrics-text') ? el : null;
+	}
+
+	function openRhymes() {
+		rhymeWord = rhymeFrom ? wordAt(rhymeFrom.value, rhymeFrom.selectionStart, rhymeFrom.selectionEnd) : '';
+	}
+
+	function closeRhymes() {
+		rhymeWord = null;
+		rhymeFrom?.focus();
 	}
 
 	function moveSection(i: number, direction: -1 | 1) {
@@ -507,6 +539,16 @@
 					<button aria-pressed={mode === 'write'} onclick={() => setMode('write')}>Write</button>
 					<button aria-pressed={mode === 'chords'} onclick={() => setMode('chords')}>Chords</button>
 				</div>
+				{#if mode === 'write'}
+					<div class="write-tools">
+						<button class="btn btn-sm" aria-pressed={syllables} title="Syllables per line" onclick={() => (syllables = !syllables)}>
+							<Icon name="rows" size={16} /> Syllables
+						</button>
+						<button class="btn btn-sm" title="Rhymes for the word at the cursor" onpointerdown={rhymesPress} onclick={openRhymes}>
+							<Icon name="search" size={16} /> Rhymes
+						</button>
+					</div>
+				{/if}
 				{#if mode === 'read' && hasWords}
 					<div class="zoom" role="group" aria-label="Text size">
 						<button class="btn btn-sm btn-icon" aria-label="Smaller text" disabled={scale <= 0.8} onclick={() => (scale = Math.round((scale - 0.1) * 10) / 10)}>A−</button>
@@ -670,7 +712,15 @@
 							{/if}
 						{:else}
 							<label class="visually-hidden" for="text-{s.id}">Lyrics for {s.label || 'this section'}</label>
-							<textarea id="text-{s.id}" class="field lyrics-text" placeholder="Lyrics…" bind:value={s.text} oninput={changed}></textarea>
+							<textarea
+								id="text-{s.id}"
+								class="field lyrics-text"
+								placeholder="Lyrics…"
+								bind:value={s.text}
+								bind:this={textareas[s.id]}
+								oninput={changed}
+							></textarea>
+							{#if syllables}<SyllableGutter textarea={textareas[s.id]} text={s.text} />{/if}
 						{/if}
 					</div>
 				{/each}
@@ -754,6 +804,10 @@
 		{/if}
 	{/if}
 </div>
+
+{#if rhymeWord !== null}
+	<RhymePanel word={rhymeWord} onclose={closeRhymes} />
+{/if}
 
 {#if scrollBar && mode === 'read'}
 	<div class="scroll-bar" role="toolbar" aria-label="Auto-scroll">
@@ -1196,8 +1250,13 @@
 		gap: 1rem;
 	}
 	.sec-edit {
+		position: relative; /* for the syllable counts */
 		display: grid;
 		gap: 0.4rem;
+	}
+	.write-tools {
+		display: flex;
+		gap: 0.35rem;
 	}
 	.sec-head {
 		display: flex;

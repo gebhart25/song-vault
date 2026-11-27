@@ -8,9 +8,12 @@
 	import { plural, shortDate } from '#lib/format.ts';
 	import { contextMenu, type MenuAt } from '#lib/longpress.ts';
 	import {
+		PROJECT_KINDS,
 		PROJECT_STATUSES,
+		kindLabel,
 		statusLabel,
 		type ProjectDetail,
+		type ProjectKind,
 		type ProjectStatus,
 		type ProjectSummary
 	} from '#lib/types.ts';
@@ -21,26 +24,31 @@
 
 	let query = $state('');
 	let statusFilter = $state<ProjectStatus | ''>('');
+	/** Originals, covers… (spec 3.1) */
+	let kindFilter = $state<ProjectKind | ''>('');
 	let includeArchived = $state(false);
 
 	let creating = $state(false);
 	let newName = $state('');
+	let newKind = $state<ProjectKind>('original');
 	let createError = $state('');
 	let createBusy = $state(false);
 
-	const filtering = $derived(query.trim() !== '' || statusFilter !== '' || includeArchived);
+	const filtering = $derived(query.trim() !== '' || statusFilter !== '' || kindFilter !== '' || includeArchived);
 
-	// Long-press or right-click a card: set its status, or change its picture (spec 3.1).
+	// Long-press or right-click a card: set its status or type, or change its picture (spec 3.1).
 	let menuFor = $state<{ project: ProjectSummary; at: MenuAt } | null>(null);
 
-	/** A status set from the menu: the card changes where it is (no reload, so the grid
-	 * doesn't shuffle while recategorizing); it leaves a status filter it no longer matches. */
+	/** A status or type set from the menu: the card changes where it is (no reload, so the
+	 * grid doesn't shuffle while recategorizing); it leaves a filter it no longer matches. */
 	function changed(detail: ProjectDetail) {
-		if (statusFilter && detail.status !== statusFilter) {
+		if ((statusFilter && detail.status !== statusFilter) || (kindFilter && detail.kind !== kindFilter)) {
 			projects = projects.filter((p) => p.id !== detail.id);
 			return;
 		}
-		projects = projects.map((p) => (p.id === detail.id ? { ...p, status: detail.status, updated_at: detail.updated_at } : p));
+		projects = projects.map((p) =>
+			p.id === detail.id ? { ...p, status: detail.status, kind: detail.kind, updated_at: detail.updated_at } : p
+		);
 	}
 
 	// Reload whenever the filters change; typing in the search box is debounced.
@@ -48,6 +56,7 @@
 		const params = new URLSearchParams();
 		if (query.trim()) params.set('q', query.trim());
 		if (statusFilter) params.set('status', statusFilter);
+		if (kindFilter) params.set('kind', kindFilter);
 		if (includeArchived) params.set('include_archived', 'true');
 		const qs = params.toString();
 
@@ -77,6 +86,8 @@
 	function startCreate() {
 		creating = true;
 		newName = '';
+		// Filtering to covers and making a new song: it's likely a cover too.
+		newKind = kindFilter || 'original';
 		createError = '';
 	}
 
@@ -86,7 +97,7 @@
 		createBusy = true;
 		createError = '';
 		try {
-			const project = await api.post<ProjectDetail>('/projects', { name: newName });
+			const project = await api.post<ProjectDetail>('/projects', { name: newName, kind: newKind });
 			await goto(`/projects/${project.id}`);
 		} catch (e) {
 			createError = e instanceof ApiError ? e.message : 'Could not create the project.';
@@ -126,6 +137,10 @@
 				onkeydown={(e) => e.key === 'Escape' && (creating = false)}
 				autofocus
 			/>
+			<label class="visually-hidden" for="new-kind">Type</label>
+			<select id="new-kind" class="field kind-select" bind:value={newKind}>
+				{#each PROJECT_KINDS as k (k.value)}<option value={k.value}>{k.label}</option>{/each}
+			</select>
 			<div class="create-actions">
 				<button class="btn btn-primary" type="submit" disabled={createBusy || !newName.trim()}>
 					Create
@@ -151,6 +166,19 @@
 					onclick={() => (statusFilter = statusFilter === s.value ? '' : s.value)}
 				>
 					{s.label}
+				</button>
+			{/each}
+		</div>
+		<div class="chips" role="group" aria-label="Filter by type">
+			<button class="chip" aria-pressed={kindFilter === ''} onclick={() => (kindFilter = '')}>All types</button>
+			{#each PROJECT_KINDS as k (k.value)}
+				<button
+					class="chip"
+					aria-pressed={kindFilter === k.value}
+					title={k.hint}
+					onclick={() => (kindFilter = kindFilter === k.value ? '' : k.value)}
+				>
+					{k.label}
 				</button>
 			{/each}
 		</div>
@@ -216,6 +244,7 @@
 							</div>
 							<p class="meta">
 								{plural(p.clip_count, 'clip')} · Updated {shortDate(p.updated_at)}
+								{#if p.kind !== 'original'}<span class="kind" data-kind={p.kind}>{kindLabel(p.kind)}</span>{/if}
 								{#if p.archived}<span class="pill">Archived</span>{/if}
 							</p>
 						</div>
@@ -341,6 +370,31 @@
 		background: var(--accent-soft);
 		border-color: rgb(240 166 70 / 0.45);
 		color: var(--accent-strong);
+	}
+	.create .kind-select {
+		flex: 0 0 auto;
+		width: auto;
+	}
+	/* A song's type on its card, when it isn't an original */
+	.kind {
+		padding: 0.05rem 0.5rem;
+		border-radius: 999px;
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		font-weight: 650;
+	}
+	.kind[data-kind='cover'] {
+		border-color: rgb(156 194 255 / 0.4);
+		color: #9cc2ff;
+	}
+	.kind[data-kind='cowrite'] {
+		border-color: rgb(134 224 171 / 0.4);
+		color: #86e0ab;
+	}
+	.kind[data-kind='arrangement'] {
+		border-color: rgb(208 178 255 / 0.4);
+		color: #d0b2ff;
 	}
 
 	.grid {

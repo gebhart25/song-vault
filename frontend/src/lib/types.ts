@@ -14,6 +14,21 @@ export function statusLabel(status: ProjectStatus): string {
 	return PROJECT_STATUSES.find((s) => s.value === status)?.label ?? status;
 }
 
+/** What kind of song a project is (spec 3.1); the Projects page filters by it */
+export type ProjectKind = 'original' | 'cowrite' | 'cover' | 'arrangement' | 'practice';
+
+export const PROJECT_KINDS: { value: ProjectKind; label: string; hint: string }[] = [
+	{ value: 'original', label: 'Original', hint: 'A song you wrote' },
+	{ value: 'cowrite', label: 'Co-write', hint: 'Written with someone else' },
+	{ value: 'cover', label: 'Cover', hint: 'Someone else’s song' },
+	{ value: 'arrangement', label: 'Arrangement', hint: 'Your take on a traditional song, or a remix or medley' },
+	{ value: 'practice', label: 'Practice', hint: 'Exercises, licks and riffs you’re learning' }
+];
+
+export function kindLabel(kind: ProjectKind): string {
+	return PROJECT_KINDS.find((k) => k.value === kind)?.label ?? kind;
+}
+
 export interface AuthStatus {
 	setup_required: boolean;
 	authenticated: boolean;
@@ -177,6 +192,7 @@ export interface ProjectSummary {
 	name: string;
 	slug: string;
 	status: ProjectStatus;
+	kind: ProjectKind;
 	archived: boolean;
 	created_at: string;
 	updated_at: string;
@@ -200,6 +216,7 @@ export interface ProjectDetail {
 	name: string;
 	slug: string;
 	status: ProjectStatus;
+	kind: ProjectKind;
 	archived: boolean;
 	notes: string;
 	song_key: string | null;

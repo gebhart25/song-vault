@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { contextMenu, type MenuAt } from '#lib/longpress.ts';
 	import { notebook, type LocalNote } from '#lib/notebook.svelte.ts';
-	import { noteDate, segmentsOf } from '#lib/notebook-text.ts';
+	import { noteDate, segmentsOf, wordAt } from '#lib/notebook-text.ts';
+	import { syllableCounts } from '#lib/words.ts';
 	import Icon from './Icon.svelte';
+	import RhymePanel from './RhymePanel.svelte';
+	import SyllableGutter from './SyllableGutter.svelte';
 
 	// One note in the Notebook (spec 5.11): its text with the tags picked out, cut to about
 	// eight lines with More. Tap to edit in place; it saves as you type.
@@ -12,7 +15,8 @@
 		onemptied,
 		selecting = false,
 		number = null,
-		ontoggle
+		ontoggle,
+		syllables = false
 	}: {
 		note: LocalNote;
 		onmenu: (at: MenuAt) => void;
@@ -23,7 +27,33 @@
 		/** Its place in the selection (1, 2, 3…), null when not selected */
 		number?: number | null;
 		ontoggle?: () => void;
+		/** Show syllables per line (a writing helper, spec 5.11) */
+		syllables?: boolean;
 	} = $props();
+
+	// --- writing helpers -------------------------------------------------------------
+
+	/** The word the Rhymes panel opened with, null while it's closed */
+	let rhymeWord = $state<string | null>(null);
+
+	function openRhymes() {
+		rhymeWord = box ? wordAt(text, box.selectionStart, box.selectionEnd) : '';
+	}
+
+	function closeRhymes() {
+		rhymeWord = null;
+		box?.focus();
+	}
+
+	const lines = $derived(note.body.split('\n'));
+	let lineCounts = $state<(number | null)[]>([]);
+	$effect(() => {
+		if (!syllables || editing) return;
+		const these = lines;
+		lineCounts = syllableCounts(these, (better) => {
+			if (lines === these) lineCounts = better;
+		});
+	});
 
 	let editing = $state(false);
 	let text = $state('');
@@ -114,10 +144,14 @@
 	{:else if editing}
 		<div class="editor" {onfocusout}>
 			<textarea bind:this={box} bind:value={text} {oninput} {onkeydown} aria-label="Edit note"></textarea>
+			{#if syllables}<SyllableGutter textarea={box} {text} />{/if}
 			<div class="editor-bar">
 				<span class="hint">Saved as you type</span>
+				<button class="btn btn-sm" title="Rhymes for the word at the cursor" onclick={openRhymes}>Rhymes</button>
 				<button class="btn btn-sm btn-primary" onclick={finish}>Done</button>
 			</div>
+			<!-- Inside the editor, so looking up a rhyme doesn't close the note -->
+			{#if rhymeWord !== null}<RhymePanel word={rhymeWord} onclose={closeRhymes} />{/if}
 		</div>
 	{:else}
 		<div class="view" use:contextMenu={onmenu}>
@@ -129,7 +163,7 @@
 				onclick={edit}
 				onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), edit())}
 				use:measure={note.body}
-			>{#each segments as s, i (i)}{#if s.tag}<span class="tag">{s.text}</span>{:else}{s.text}{/if}{/each}</div>
+			>{#if syllables}{#each lines as line, li (li)}<div class="counted"><span>{#each segmentsOf(line) as s, i (i)}{#if s.tag}<span class="tag">{s.text}</span>{:else}{s.text}{/if}{/each}{#if !line}&#8203;{/if}</span>{#if lineCounts[li] != null}<span class="count" aria-label="{lineCounts[li]} syllables">{lineCounts[li]}</span>{/if}</div>{/each}{:else}{#each segments as s, i (i)}{#if s.tag}<span class="tag">{s.text}</span>{:else}{s.text}{/if}{/each}{/if}</div>
 			{#if overflowing || expanded}
 				<button class="more" onclick={() => (expanded = !expanded)}>{expanded ? 'Less' : 'More'}</button>
 			{/if}
@@ -201,6 +235,21 @@
 	.tag {
 		color: var(--accent-strong);
 		font-weight: 600;
+	}
+	/* Syllables per line, in a column on the right */
+	.counted {
+		position: relative;
+		padding-right: 2.2rem;
+	}
+	.counted .count {
+		position: absolute;
+		top: 0;
+		right: 0;
+		color: var(--text-faint);
+		font-size: 0.78em;
+		font-weight: 650;
+		line-height: 1.9;
+		font-variant-numeric: tabular-nums;
 	}
 	.songs {
 		display: flex;
@@ -347,6 +396,7 @@
 		fill: currentColor;
 	}
 	.editor {
+		position: relative; /* for the syllable counts */
 		display: grid;
 		gap: 0.4rem;
 		padding: 0.55rem 0.6rem 0.55rem;

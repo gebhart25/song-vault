@@ -67,6 +67,21 @@ export function firstLine(body: string, max = 80): string {
 	return clean.length > max ? clean.slice(0, max).trimEnd() : clean;
 }
 
+/** The word to find rhymes for: the selected text, else the word at (or just before) the
+ * cursor. */
+export function wordAt(text: string, start: number, end = start): string {
+	if (end > start) return text.slice(start, end).trim();
+	const isLetter = (c: string | undefined) => !!c && /[\p{L}']/u.test(c);
+	let i = Math.min(start, text.length);
+	// In the space after a word: that word.
+	while (i > 0 && !isLetter(text[i - 1]) && !isLetter(text[i]) && text[i - 1] !== '\n') i--;
+	let a = i;
+	let b = i;
+	while (a > 0 && isLetter(text[a - 1])) a--;
+	while (b < text.length && isLetter(text[b])) b++;
+	return text.slice(a, b).replace(/^'+|'+$/g, '');
+}
+
 /** Lowercase, without accents: "Café" and "cafe" match. */
 export function foldText(text: string): string {
 	return text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase();

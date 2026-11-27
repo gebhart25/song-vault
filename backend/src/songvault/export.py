@@ -280,7 +280,7 @@ def export_project(project_id: int, request: Request, conn: sqlite3.Connection =
         "version": FORMAT_VERSION,
         "exported_at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "song": {
-            "name": song["name"], "status": song["status"], "archived": bool(song["archived"]),
+            "name": song["name"], "status": song["status"], "kind": song["kind"], "archived": bool(song["archived"]),
             "created_at": song["created_at"], "updated_at": song["updated_at"],
             "key": song["song_key"], "bpm": song["bpm"], "time_signature": song["time_signature"],
             "capo": song["capo"], "tuning": song["tuning"], "sounds_like": song["sounds_like"],

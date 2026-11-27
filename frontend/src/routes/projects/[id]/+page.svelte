@@ -17,10 +17,12 @@
 	import { roleOptions, sameRole } from '#lib/roles.ts';
 	import {
 		CLIP_STATUSES,
+		PROJECT_KINDS,
 		PROJECT_STATUSES,
 		type ClipStatus,
 		type ClipSummary,
 		type Label,
+		type ProjectKind,
 		type ProjectDetail,
 		type ProjectStatus,
 		type ProjectSummary,
@@ -521,6 +523,16 @@
 				</div>
 			</div>
 			<p class="meta">
+				<label class="visually-hidden" for="kind">Type</label>
+				<select
+					id="kind"
+					class="kind-select"
+					value={project.kind}
+					title="What kind of song this is"
+					onchange={(e) => update({ kind: e.currentTarget.value as ProjectKind })}
+				>
+					{#each PROJECT_KINDS as k (k.value)}<option value={k.value}>{k.label}</option>{/each}
+				</select>
 				{plural(project.clip_count, 'clip')} · Updated {shortDate(project.updated_at)}
 				{#if project.archived}<span class="pill">Archived</span>{/if}
 			</p>
@@ -992,6 +1004,18 @@
 		min-height: 38px;
 		font-weight: 600;
 		font-size: 0.9rem;
+	}
+	/* The song's type (Original, Cover…), small, at the start of the line under its name */
+	.kind-select {
+		padding: 0.1rem 0.4rem;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		background: var(--surface);
+		color: var(--text);
+		font: inherit;
+		font-size: 0.8rem;
+		font-weight: 650;
+		cursor: pointer;
 	}
 	.meta {
 		display: flex;

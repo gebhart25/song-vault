@@ -17,6 +17,9 @@ from .db import now_iso
 from .deps import get_db
 
 ProjectStatus = Literal["idea", "writing", "arranging", "recorded", "done", "shelved"]
+ProjectKind = Literal["original", "cowrite", "cover", "arrangement", "practice"]
+"""What kind of song it is (spec 3.1): yours, written with someone, someone else's, your
+arrangement of a traditional song or a new take on another, or practice material."""
 ClipStatus = Literal["idea", "current", "used", "discarded"]
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -96,6 +99,7 @@ class Strum(BaseModel):
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     status: ProjectStatus = "idea"
+    kind: ProjectKind = "original"
     notes: str = Field(default="", max_length=100_000)
 
     @field_validator("name")
@@ -107,6 +111,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     status: ProjectStatus | None = None
+    kind: ProjectKind | None = None
     notes: str | None = Field(default=None, max_length=100_000)
     archived: bool | None = None
     song_key: str | None = Field(default=None, max_length=40)
@@ -174,6 +179,7 @@ class ProjectSummary(BaseModel):
     name: str
     slug: str
     status: ProjectStatus
+    kind: ProjectKind
     archived: bool
     created_at: str
     updated_at: str
@@ -197,6 +203,7 @@ class ProjectDetail(BaseModel):
     name: str
     slug: str
     status: ProjectStatus
+    kind: ProjectKind
     archived: bool
     notes: str
     song_key: str | None
@@ -374,6 +381,7 @@ def project_detail(conn: sqlite3.Connection, project_id: int) -> ProjectDetail:
         name=p["name"],
         slug=p["slug"],
         status=p["status"],
+        kind=p["kind"],
         archived=bool(p["archived"]),
         notes=p["notes"],
         song_key=p["song_key"],
@@ -425,6 +433,7 @@ def _like(term: str) -> str:
 def list_projects(
     q: str | None = Query(default=None, max_length=200),
     status_filter: ProjectStatus | None = Query(default=None, alias="status"),
+    kind_filter: ProjectKind | None = Query(default=None, alias="kind"),
     include_archived: bool = False,
     conn: sqlite3.Connection = Depends(get_db),
 ) -> list[ProjectSummary]:
@@ -435,6 +444,9 @@ def list_projects(
     if status_filter:
         where.append("p.status = :status")
         params["status"] = status_filter
+    if kind_filter:
+        where.append("p.kind = :kind")
+        params["kind"] = kind_filter
     if q and q.strip():
         # Song name, general notes, or the words on the lyrics page.
         where.append(
@@ -464,6 +476,7 @@ def list_projects(
                 name=r["name"],
                 slug=r["slug"],
                 status=r["status"],
+                kind=r["kind"],
                 archived=bool(r["archived"]),
                 created_at=r["created_at"],
                 updated_at=r["updated_at"],
@@ -480,8 +493,8 @@ def create_project(body: ProjectCreate, conn: sqlite3.Connection = Depends(get_d
     now = now_iso()
     with conn:
         cur = conn.execute(
-            "INSERT INTO projects (name, slug, status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (body.name, unique_slug(conn, body.name), body.status, body.notes, now, now),
+            "INSERT INTO projects (name, slug, status, kind, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (body.name, unique_slug(conn, body.name), body.status, body.kind, body.notes, now, now),
         )
     return project_detail(conn, cur.lastrowid)
 
@@ -527,7 +540,7 @@ def update_project(
 ) -> ProjectDetail:
     current = get_project_row(conn, project_id)
     changes = body.model_dump(exclude_unset=True)
-    for required in ("name", "status", "notes", "archived", "progressions", "strumming"):
+    for required in ("name", "status", "kind", "notes", "archived", "progressions", "strumming"):
         if required in changes and changes[required] is None:
             raise HTTPException(422, f"{required} can't be empty")
     if not changes:

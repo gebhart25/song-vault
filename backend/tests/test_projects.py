@@ -58,6 +58,30 @@ def test_search_and_status_filter(authed: TestClient) -> None:
     assert authed.get("/api/projects", params={"status": "bogus"}).status_code == 422
 
 
+def test_song_types(authed: TestClient, project: dict) -> None:
+    """Original, co-write, cover, arrangement or practice (spec 3.1): set, shown, filtered."""
+    assert project["kind"] == "original"  # the default
+    cover = authed.post("/api/projects", json={"name": "Man in the Mirror", "kind": "cover"}).json()
+    assert cover["kind"] == "cover"
+    authed.post("/api/projects", json={"name": "Scale Runs", "kind": "practice", "status": "writing"})
+
+    def names(**params: str) -> list[str]:
+        return sorted(p["name"] for p in authed.get("/api/projects", params=params).json())
+
+    assert names(kind="original") == ["Midnight Drive"]
+    assert names(kind="cover") == ["Man in the Mirror"]
+    assert names(kind="practice", status="writing") == ["Scale Runs"]
+    assert names(kind="practice", status="idea") == []
+    assert [p["kind"] for p in authed.get("/api/projects", params={"kind": "cover"}).json()] == ["cover"]
+    assert authed.get("/api/projects", params={"kind": "bogus"}).status_code == 422
+
+    r = authed.patch(f"/api/projects/{project['id']}", json={"kind": "cowrite"})
+    assert r.json()["kind"] == "cowrite"
+    assert names(kind="cowrite") == ["Midnight Drive"]
+    assert authed.patch(f"/api/projects/{project['id']}", json={"kind": None}).status_code == 422
+    assert authed.patch(f"/api/projects/{project['id']}", json={"kind": "remix"}).status_code == 422
+
+
 def test_update_fields_and_rename(authed: TestClient, project: dict) -> None:
     r = authed.patch(
         f"/api/projects/{project['id']}",

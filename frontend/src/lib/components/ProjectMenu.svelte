@@ -2,7 +2,14 @@
 	import { goto } from '$app/navigation';
 	import { ApiError, api } from '#lib/api.ts';
 	import type { MenuAt } from '#lib/longpress.ts';
-	import { PROJECT_STATUSES, type ProjectDetail, type ProjectStatus, type ProjectSummary } from '#lib/types.ts';
+	import {
+		PROJECT_KINDS,
+		PROJECT_STATUSES,
+		type ProjectDetail,
+		type ProjectKind,
+		type ProjectStatus,
+		type ProjectSummary
+	} from '#lib/types.ts';
 	import Icon from './Icon.svelte';
 
 	// The long-press / right-click menu on a Projects page card (spec 3.1): set the song's
@@ -35,19 +42,19 @@
 		menu?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
 	});
 
-	async function setStatus(status: ProjectStatus) {
+	async function save(change: { status: ProjectStatus } | { kind: ProjectKind }) {
 		if (busy) return;
-		if (status === project.status) {
+		if ('status' in change ? change.status === project.status : change.kind === project.kind) {
 			onclose();
 			return;
 		}
 		busy = true;
 		error = '';
 		try {
-			onchange(await api.patch<ProjectDetail>(`/projects/${project.id}`, { status }));
+			onchange(await api.patch<ProjectDetail>(`/projects/${project.id}`, change));
 			onclose();
 		} catch (e) {
-			error = e instanceof ApiError ? e.message : 'Could not change the status.';
+			error = e instanceof ApiError ? e.message : 'Could not change it.';
 		} finally {
 			busy = false;
 		}
@@ -110,10 +117,25 @@
 	<div role="menu" aria-label="Status">
 		<p class="group">Status</p>
 		{#each PROJECT_STATUSES as s (s.value)}
-			<button role="menuitemradio" aria-checked={project.status === s.value} disabled={busy} onclick={() => setStatus(s.value)}>
+			<button role="menuitemradio" aria-checked={project.status === s.value} disabled={busy} onclick={() => save({ status: s.value })}>
 				<span class="dot" data-status={s.value}></span>
 				{s.label}
 				{#if project.status === s.value}<span class="check"><Icon name="check" size={16} stroke={2.5} /></span>{/if}
+			</button>
+		{/each}
+		<hr />
+		<p class="group">Type</p>
+		{#each PROJECT_KINDS as k (k.value)}
+			<button
+				role="menuitemradio"
+				aria-checked={project.kind === k.value}
+				disabled={busy}
+				title={k.hint}
+				onclick={() => save({ kind: k.value })}
+			>
+				<span class="dot kind-dot"></span>
+				{k.label}
+				{#if project.kind === k.value}<span class="check"><Icon name="check" size={16} stroke={2.5} /></span>{/if}
 			</button>
 		{/each}
 		<hr />
@@ -228,6 +250,10 @@
 	}
 	.dot[data-status='shelved'] {
 		background: #8e96a6;
+	}
+	.kind-dot {
+		background: transparent;
+		border: 2px solid var(--text-faint);
 	}
 	hr {
 		margin: 0.3rem 0.4rem;

@@ -6,10 +6,12 @@
 	import NoteItem from '#lib/components/NoteItem.svelte';
 	import NoteMenu, { type NoteAction } from '#lib/components/NoteMenu.svelte';
 	import NoteSongDialog, { type SongDialogMode } from '#lib/components/NoteSongDialog.svelte';
+	import RhymePanel from '#lib/components/RhymePanel.svelte';
+	import SyllableGutter from '#lib/components/SyllableGutter.svelte';
 	import { plural } from '#lib/format.ts';
 	import type { MenuAt } from '#lib/longpress.ts';
 	import { notebook, type LocalNote } from '#lib/notebook.svelte.ts';
-	import { foldText, searchWords, splitPasted, tagsOf } from '#lib/notebook-text.ts';
+	import { foldText, searchWords, splitPasted, tagsOf, wordAt } from '#lib/notebook-text.ts';
 	import { deleteShare, getShare, listShares } from '#lib/share-store.ts';
 
 	// The Notebook (spec 5.11): lyric lines, rhymes, titles and song ideas, one note each.
@@ -31,6 +33,19 @@
 	});
 	/** The song actions need the server */
 	const online = $derived(!auth.offline && notebook.state !== 'offline');
+
+	// --- writing helpers (spec 5.11) ----------------------------------------------------
+
+	const SYLLABLES_KEY = 'songvault.syllables';
+	/** Syllables per line, on every note and while writing; remembered on the device */
+	let syllables = $state(localStorage.getItem(SYLLABLES_KEY) === '1');
+	$effect(() => {
+		localStorage.setItem(SYLLABLES_KEY, syllables ? '1' : '0');
+	});
+	/** The Rhymes panel from the page menu (word to start with), null while closed */
+	let pageRhymes = $state<string | null>(null);
+	/** The Rhymes panel from the Jot box */
+	let jotRhymes = $state<string | null>(null);
 	let shown = $state(PAGE_SIZE);
 	/** The note being written in the Jot box: kept out of the list until it's done */
 	let jotUid = $state<string | null>(null);
@@ -352,6 +367,13 @@
 			</button>
 			{#if pageMenuOpen}
 				<div class="popover" role="menu">
+					<button role="menuitem" onclick={() => ((pageMenuOpen = false), (pageRhymes = ''))}>
+						<Icon name="search" size={18} /> Find rhymes…
+					</button>
+					<button role="menuitemcheckbox" aria-checked={syllables} onclick={() => ((syllables = !syllables), (pageMenuOpen = false))}>
+						<Icon name="rows" size={18} /> Syllable counts
+						{#if syllables}<span class="check"><Icon name="check" size={16} stroke={2.5} /></span>{/if}
+					</button>
 					<button role="menuitem" onclick={() => startSelecting()}><Icon name="select" size={18} /> Select notes (to combine)</button>
 					<button role="menuitem" onclick={openPaste}><Icon name="notes" size={18} /> Paste notes…</button>
 				</div>
@@ -388,6 +410,7 @@
 			aria-label="New note"
 			rows="1"
 		></textarea>
+		{#if syllables && jotOpen}<SyllableGutter textarea={jotBox} text={jotText} />{/if}
 		{#if jotOpen}
 			<div class="jot-bar">
 				{#if sharing}
@@ -396,9 +419,26 @@
 					<button class="btn btn-sm btn-primary" onclick={saveShared}>Save</button>
 				{:else}
 					<span class="hint">{jotUid ? 'Saved as you type' : 'A line, a rhyme, an idea…'}</span>
+					<button
+						class="btn btn-sm"
+						title="Rhymes for the word at the cursor"
+						onclick={() => (jotRhymes = jotBox ? wordAt(jotText, jotBox.selectionStart, jotBox.selectionEnd) : '')}
+					>
+						Rhymes
+					</button>
 					<button class="btn btn-sm btn-primary" onclick={finishJot}>Done</button>
 				{/if}
 			</div>
+		{/if}
+		<!-- Inside the box, so looking up a rhyme doesn't finish the note -->
+		{#if jotRhymes !== null}
+			<RhymePanel
+				word={jotRhymes}
+				onclose={() => {
+					jotRhymes = null;
+					jotBox?.focus();
+				}}
+			/>
 		{/if}
 	</div>
 
@@ -451,6 +491,7 @@
 						{note}
 						onmenu={(at) => openMenu(note, at)}
 						onemptied={() => trashNote(note.uid)}
+						{syllables}
 						{selecting}
 						number={place >= 0 ? place + 1 : null}
 						ontoggle={() => togglePick(note.uid)}
@@ -469,6 +510,10 @@
 {#if menu}
 	{@const target = menu.note}
 	<NoteMenu note={target} at={menu.at} {online} onclose={() => (menu = null)} onaction={(a) => act(a, target)} />
+{/if}
+
+{#if pageRhymes !== null}
+	<RhymePanel word={pageRhymes} onclose={() => (pageRhymes = null)} />
 {/if}
 
 {#if songDialog}
@@ -573,6 +618,11 @@
 	.popover button:hover {
 		background: var(--surface-3);
 	}
+	.popover .check {
+		display: grid;
+		margin-left: auto;
+		color: var(--accent);
+	}
 	.status {
 		display: flex;
 		align-items: center;
@@ -586,6 +636,7 @@
 	}
 
 	.jot {
+		position: relative; /* for the syllable counts */
 		margin-bottom: 1rem;
 		border: 1px solid var(--border);
 		border-radius: var(--radius);

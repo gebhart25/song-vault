@@ -10,7 +10,8 @@ Phases 1 (the MVP), 2 (quality of life), 3 (extras), 4 (clip editing) and 5 (the
 
 - PIN setup and sign-in (4–6 digits, one-year session cookie), Change PIN in the account menu
 - Projects: create, rename (renames the media folder too), status, archive, move to Trash
-- Projects page cards: long-press / right-click to set the status or change the thumbnail; pictures from the song's clips, 12 stock artworks (`frontend/static/covers/`) or an upload
+- Projects page cards: long-press / right-click to set the status or type or change the thumbnail; pictures from the song's clips, 12 stock artworks (`frontend/static/covers/`) or an upload
+- Song types (Original, Co-write, Cover, Arrangement, Practice) with a type filter on the Projects page, next to the status filter
 - Song notes: key, BPM, time signature, capo, tuning, "sounds like", labeled chord progressions, strumming patterns (arrows with beat counts), general notes
 - Lyrics & chords page: labeled sections, chord sheet view, tap-to-place chords (from the song's progressions or key; on a word, or before or after a line), autosave with conflict check; transpose (view or save in the new key), auto-scroll with the screen kept on, two-column view, the song's strumming patterns on the sheet, print view (in one or two columns, with strumming if it's on)
 - Song page: one row per part, Full Song pinned at the top, rows can be rearranged and collapsed, custom parts per song, horizontal clip strips with the Current take pinned left, a **+** on each row to upload straight into that part
@@ -27,6 +28,7 @@ Phases 1 (the MVP), 2 (quality of life), 3 (extras), 4 (clip editing) and 5 (the
 - Uncategorized (a card on the Projects page that opens a play-and-sort screen) and Upload history pages (marks files **Safe to delete** once the offsite backup has them; see [Backups](#backups))
 - **Notebook** for lyric lines, rhymes, titles and song ideas: a Jot box that saves as you type, `#tags` with filter chips, search, stars, Move to top, Paste notes (a whole phone notepad, split at blank lines), Trash with Undo. It works offline: the notebook is kept on the device (IndexedDB) and synced by change number when the server is reachable, with edits from two devices kept side by side rather than overwritten. Text shared from other apps becomes a note, and the home-screen icon has a **New note** shortcut
 - Notebook and songs: **Use in a song** (song chips on the note, a Notebook panel on the song page), **Start a song from this**, Used / Hide used, and **Combine notes** (pick several, numbered in the order picked, joined with a blank line). A song's ideas stay in its Notebook panel, out of the lyrics; its zip export includes them
+- Writing helpers in the Notebook and the lyrics Write view: **Rhymes** (perfect and near, by syllables, everyday words first) for the word at the cursor, and **syllable counts** beside each line, from the [CMU Pronouncing Dictionary](http://www.speech.cs.cmu.edu/cgi-bin/cmudict) shipped with the app (BSD-style licence: `backend/src/songvault/data/cmudict-LICENSE.txt`), so the words never leave your server
 - Installable app (PWA) with an app-shell cache (it opens without the server, in offline mode), and the **Android share target**: share videos from the gallery to Song Vault, pick the song and part, upload
 
 ## Layout
@@ -47,6 +49,7 @@ backend/    FastAPI app (Python 3.13, managed with uv)
     jobs.py         background worker: playback and audio copies, preview grids, waveforms (per recording); thumbnails (per clip)
     export.py       a song as a zip
     notes.py        the Notebook: notes synced from devices by change number, conflicts kept as copies
+    words.py        rhymes and syllable counts (data/cmudict.dict.gz)
     db.py           SQLite connection + migrations
     migrations/     numbered .sql files (schema version = PRAGMA user_version)
   tests/
